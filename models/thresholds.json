@@ -1,0 +1,8 @@
+{
+  "block": 0.05284271519596658,
+  "review": 0.013678734041381698,
+  "validation_target_fpr": {
+    "block": 0.01,
+    "review": 0.05
+  }
+}
