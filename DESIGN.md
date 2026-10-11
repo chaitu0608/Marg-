@@ -10,19 +10,25 @@
 
 **How would you distinguish an outage from noise?** The simulation supplies a known outage schedule only to evaluation. A production detector would need a separate sequential test or change-point detector over observed declines, with persistence, traffic-volume checks, and a false-alarm budget. Marg does not claim to solve that production detection problem.
 
+Marg now includes `ObservedOutageDetector`, which compares a 100-outcome baseline with the latest 25 observed outcomes for a bank/gateway pair. It signals a drop only when baseline success is at least 75% and recent success is at most 50%; it clears after recent success rises above 50%. These initial cutoffs are simple simulation parameters, not production-calibrated probabilities. The benchmark uses a balanced probe policy and checks alerts against the schedule only after the detector emits them.
+
 ## Fraud and explanations
 
 **Why is SHAP kept out of `/score`?** Model inference returns a score and threshold decision. SHAP is much slower and runs only when `/explain` is called, so its work cannot increase the `/score` path's measured latency.
 
 **Why a time-based split? Why PR-AUC instead of accuracy?** Rows are sorted by `Time` and divided in chronological order to expose drift between training and evaluation. With a rare positive class, accuracy can look high when a classifier misses almost every fraud. PR-AUC focuses on precision and recall for the positive class; recall at a fixed false-positive rate gives a threshold-oriented companion metric.
 
-**How are thresholds selected?** The block threshold is chosen on validation scores at a target false-positive rate. The review threshold is chosen at a looser target, making an intermediate zone. Test metrics are computed after thresholds are fixed.
+**How are thresholds selected?** A deterministic validation grid chooses the review/block thresholds minimizing missed-fraud Amount plus false-blocked Amount plus a configured per-review cost, subject to a maximum review fraction. Values use the source dataset's Amount units, whose currency and relation to actual loss are unknown. The policy assumes review resolves fraud. The latest chronological test split evaluates the fixed thresholds without retuning.
+
+**What does cost-aware mean here?** It is a transparent scenario using transaction Amount as a proxy for fraud loss and false-decline cost, with a configured review cost and capacity. It is not a measured business cost model; production use would require agreed loss, customer-friction, and review-capacity inputs.
 
 ## Scale and the investigator
 
-**What would change at 350M transactions per day?** I would profile the actual service, then reduce feature construction and serialization work, cache immutable lookup features, avoid unnecessary network hops in the hot path, batch model inference where latency permits, and evaluate a smaller model. The current local benchmark cannot forecast that scale.
+**What would change at 350M transactions per day?** I would profile the actual service, then reduce feature construction and serialization work, cache immutable lookup features, avoid unnecessary network hops in the hot path, batch model inference where latency permits, and evaluate a smaller model. The local benchmark uses a fixed set of concurrent HTTP workers and cannot forecast production scale.
 
 **Why is the LLM kept out of the decision path?** Fraud model thresholds decide allow/review/block, and the router chooses the gateway. The investigator runs only after the decision for a case report. Its output is validated, its factors must be in the supplied SHAP list, and a failed response falls back to a fixed report.
+
+**What prevents accidental live gateway calls?** `GatewayDispatchGuard` is disabled by default. Even if explicitly enabled, it requires an adapter, nonempty gateway allowlist, finite positive amount cap, an `allow` decision, an amount within the cap, and unique transaction and idempotency identifiers. Its deduplication store is process-local, so a production adapter must replace that boundary with durable deduplication, approval, reconciliation, and audit controls.
 
 ## Ambiguity
 

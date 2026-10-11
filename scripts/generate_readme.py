@@ -20,6 +20,7 @@ def render() -> str:
     fraud = load("fraud_metrics.json")
     latency = load("loadtest.json")
     pipeline = load("pipeline.json")
+    outage = load("outage_detection.json")
     sweep = load("window_sweep.json")
     route_rows = []
     for name, values in routing["routing"].items():
@@ -35,6 +36,8 @@ def render() -> str:
     return f"""# Marg
 
 Marg is a small, reproducible simulation of two payment decisions: routing a transaction across drifting, outage-prone gateways, and scoring it for fraud with a gradient-boosted model. Gateway behavior and routing traffic are synthetic; fraud metrics below use the data source recorded in the saved result file.
+
+The name is a sentimental nod to the Hindi word **मार्ग (mārg)**, meaning “path” or “way.” It fits a project about the path each payment takes—from scoring, through a routing choice, to an outcome that helps the system learn.
 
 ## Architecture
 
@@ -67,15 +70,22 @@ Fraud dataset: **{fraud['dataset']}** at `{fraud['dataset_path']}` ({fraud['rows
 | Precision at validation block threshold | {fraud['precision_at_block_threshold']:.6f} |
 | Confusion matrix (TN, FP / FN, TP) | {cm[0][0]:,}, {cm[0][1]:,} / {cm[1][0]:,}, {cm[1][1]:,} |
 
+Thresholds are selected on validation data by minimizing missed-fraud Amount plus false-blocked Amount plus review count times the configured review cost, subject to a {fraud['cost_policy']['max_review_rate']:.1%} review cap. Amount values are dataset units; the source does not establish a currency or actual fraud loss. The model assumes manual review resolves a fraudulent transaction. On the newer test period, measured cost was {fraud['cost_policy']['newer_test_period']['total_cost_amount_units']:.3f} Amount units; review rate was {fraud['cost_policy']['newer_test_period']['review_rate']:.3%}.
+
 Accuracy is not a headline metric because the legitimate class dominates; predicting every transaction as legitimate would appear accurate while missing fraud.
 
 | Scoring service load test | Measured value |
 |---|---:|
 | Requests at concurrency | {latency['requests']:,} at {latency['concurrency']} |
+| Uvicorn workers | {latency['server_workers']} |
 | p50 / p95 / p99 latency | {latency['p50_ms']:.3f} / {latency['p95_ms']:.3f} / {latency['p99_ms']:.3f} ms |
 | Throughput | {latency['throughput_rps']:.2f} requests/s |
 | p99 target ({latency['target_p99_ms']:.0f} ms) | {'met' if latency['target_met'] else 'missed'} |
 | Bottleneck | {latency['bottleneck']} |
+| Measurement method | {latency['measurement']} |
+| App processing p99 | {latency['app_processing_p99_ms']:.3f} ms |
+| Outside-app time p99 (paired estimate) | {latency['outside_app_p99_ms']:.3f} ms |
+| Non-inference overhead p99 (paired request estimate) | {latency['non_inference_overhead_p99_ms']:.3f} ms |
 
 | End-to-end test-stream metric | Measured value |
 |---|---:|
@@ -83,6 +93,10 @@ Accuracy is not a headline metric because the legitimate class dominates; predic
 | False block rate | {pipeline['false_block_rate']:.6f} |
 | Routing success rate | {pipeline['routing_success_rate']:.6f} |
 | Review queue size | {pipeline['review_queue_count']:,} |
+
+## Observed-outcome outage detector
+
+The detector receives only outcomes from a balanced probe policy and compares the previous {outage['detector_parameters']['baseline_window']} observed outcomes with the latest {outage['detector_parameters']['detection_window']}. Across {outage['seed_count']} seeded synthetic worlds, it detected {outage['detected_outage_count']} of {outage['outage_count']} outages whose alert evidence overlapped the outage, missed {outage['missed_outage_count']}, and emitted {outage['false_alarm_count']} false alarms ({outage['false_alarms_per_10000_observed_outcomes']:.3f} per 10,000 observations). Median detection delay was {outage['median_detection_delay_ticks']} ticks; median delay to clear an alert after recovery was {outage['median_recovery_delay_ticks']} ticks. Median probes per outage were {outage['median_probe_outcomes_per_outage']:.1f}, and {outage['outages_with_fewer_than_detection_window_probes']} outages had fewer probes than the detector's recent window. Premature alert clears: {outage['premature_alert_clear_count']}. These results describe the synthetic probe setup, not production alert quality.
 
 The window sweep measured these seeded Thompson success rates: {', '.join(f"W={row['window']}: {row['metrics']['success_rate']:.4f}" for row in sweep['thompson'])}. See the saved sweep JSON for the full values.
 
@@ -105,8 +119,18 @@ Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install 
 - Gateway behavior and generated routing traffic are synthetic, not production payment data.
 - Gateway outages are simplified seeded intervals that affect one gateway and bank across methods.
 - The fraud dataset uses anonymized PCA features and historical European card transactions; this does not establish performance on current or Marg-specific traffic.
+- The fraud cost policy uses dataset Amount as a proxy and assumes manual review resolves fraud; its cost units are not verified currency or observed business losses.
 - Local HTTP load-test latency includes serialization and loopback networking and does not represent a production deployment.
+- In the saved load test, client-observed tail latency is measured under local 32-way load; app timing excludes time waiting to enter the ASGI app and socket delivery.
 - SHAP explanations are separate post-score work and are not included in `/score` latency.
+- Gateway dispatch is fail-closed and has no live adapter. Its idempotency memory is process-local; production requires durable idempotency, authorization, reconciliation, and operator controls.
+
+## Next improvements
+
+- Validate fraud costs with real loss, false-decline, and review-capacity data, then evaluate on later time periods.
+- Test outage detection against seasonal changes, sparse gateway traffic, and overlapping incidents; the measured probe traffic is balanced by construction.
+- Use durable idempotency and audited operator approval before wiring a real gateway adapter.
+- Profile production-like networking and serialization; local loopback p99 does not predict deployed tail latency.
 """
 
 

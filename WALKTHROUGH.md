@@ -24,11 +24,15 @@ The Beta posterior represents uncertainty about a binary success probability. A 
 
 `bench/run_routing.py:_recovery_times` scans affected-bank transactions after each outage starts. It records the first point where the last 50 such transactions include at most five choices of the degraded gateway. If that condition never appears before the world ends, the event is retained as `null` and counted under `never_recovered`; it is not silently dropped from the failure count.
 
+The separate `src/marg/routing/outage.py:ObservedOutageDetector` compares a baseline deque with a recent deque for each bank/gateway pair. Its `observe` method accepts only one observed boolean result and a key/tick. `bench/run_outage_detector.py` chooses balanced gateway probes, simulates the selected outcomes outside the detector, and only then compares emitted alerts with the hidden schedule to score false alarms, detection delay, and alert-clear delay.
+
 **Edge cases:** Recovery is measured in affected-bank transactions, not wall-clock ticks. A gateway can already be used rarely at outage onset; the earliest eligible recovery still requires a full 50 affected-bank observations. Very late outages can be censored by the end of the simulated horizon.
 
 ## 4. Fraud time split, thresholds, and PR-AUC
 
-`src/marg/fraud/data.py:time_split` sorts rows by `Time`, then puts the earliest portion in training, the next portion in validation, and the latest portion in test. `src/marg/fraud/train.py:train` fits LightGBM with a positive-class weight computed from training labels. The validation set chooses the block threshold at a 1% false-positive target and the lower review threshold at a 5% target. Test metrics are then saved to `results/fraud_metrics.json`.
+`src/marg/fraud/data.py:time_split` sorts rows by `Time`, then puts the earliest portion in training, the next portion in validation, and the latest portion in test. `src/marg/fraud/train.py:train` fits LightGBM with a positive-class weight computed from training labels. `src/marg/fraud/thresholds.py:select_cost_thresholds` searches a deterministic validation score grid, minimizing missed-fraud Amount plus false-blocked Amount plus configured review cost, subject to a review-rate cap. It evaluates this fixed policy on the strictly newer test period and saves the breakdown to `results/fraud_metrics.json`.
+
+This is an explicit scenario, not known business economics: Kaggle's Amount unit/currency is not specified for this project, and the review model assumes manual review resolves fraud. The maximum review fraction and review cost are configurable CLI arguments; actual deployment thresholds need validated loss and operations costs.
 
 Accuracy is misleading for a rare class: a classifier can predict almost everything as legitimate and still score high accuracy while missing fraud. PR-AUC reports the precision/recall tradeoff for the positive class. Recall at a fixed false-positive rate reports a concrete operating point. The test split remains chronologically later than the training split to expose temporal shift.
 
@@ -38,7 +42,7 @@ Accuracy is misleading for a rare class: a classifier can predict almost everyth
 
 `src/marg/fraud/serve.py:create_app` loads the model and thresholds at startup. `/score` converts the 30 numeric values to a NumPy row and performs model inference and threshold selection. It does not instantiate the explainer. `/explain` lazily creates the SHAP tree explainer and returns the largest absolute contributions.
 
-Keeping explanations off `/score` avoids making every allow/review/block request pay SHAP's compute cost. `bench/run_loadtest.py` measures end-to-end local HTTP request latency, including HTTP, JSON, and loopback overhead. That measured latency is not pure model inference time; the saved bottleneck note names the included HTTP and serialization work.
+Keeping explanations off `/score` avoids making every allow/review/block request pay SHAP's compute cost. `/score` is async, the loaded single-row LightGBM model is set to one native thread, and `make serve` starts four Uvicorn worker processes. `bench/run_loadtest.py` uses a fixed number of request workers instead of creating thousands of queued client tasks. It reports client-observed local HTTP latency separately from model inference and ASGI-app processing; time outside the ASGI app includes loopback, socket queueing, and client scheduling.
 
 **Edge cases:** The API validates the feature count before prediction. If the saved model or threshold file is missing, service startup fails rather than inventing a fallback model. SHAP output has to be requested explicitly and may take longer than scoring.
 
@@ -49,6 +53,12 @@ Keeping explanations off `/score` avoids making every allow/review/block request
 The investigator has no API to change a model score, a routing choice, or an allow/review/block result. `MockLLM` makes tests deterministic and keeps tests offline; `default_llm` selects it when no API key exists and an environment-keyed OpenAI adapter otherwise. The pipeline records review cases in a queue and does not call any LLM.
 
 **Edge cases:** Malformed JSON, an unsupported action, an out-of-range confidence, or an invented factor is rejected. The fallback lists only factors already provided by SHAP and recommends review.
+
+## 7. Gateway dispatch safeguards
+
+`src/marg/gateway/safety.py:GatewayDispatchGuard` is a fail-closed adapter boundary, not a real payment integration. Live dispatch is disabled by default. Explicit opt-in requires a configured adapter, nonempty gateway allowlist, and finite positive amount cap; each request must also have an allow decision, a finite positive amount within the cap, and unique transaction and idempotency identifiers.
+
+**Edge cases:** Idempotency keys are recorded before the adapter call, so an ambiguous timeout cannot be retried through the same guard instance. The in-memory set does not survive process restarts and is not enough for real payments; a production adapter needs durable idempotency, audited operator approval, reconciliation, and operational rollback controls.
 
 ## Likely interview questions
 
@@ -61,17 +71,17 @@ The investigator has no API to change a model score, a routing choice, or an all
 7. **What does the window do?** It bounds how much old feedback can affect the current posterior, which lets the policy respond to changing rates.
 8. **What does a longer window cost?** It reduces sampling noise but can make adaptation slower; use the saved sweep rather than claiming one window is universally best.
 9. **How does cold start work?** Each gateway begins from the same Beta(1,1) prior.
-10. **How is an outage known to the router?** It is not; only evaluation code sees the schedule. The router receives binary results.
+10. **How does observed-outcome outage detection avoid leakage?** The detector receives binary outcomes only; the benchmark uses rates to generate the selected probe's result and the hidden schedule later to score alerts.
 11. **What is the outage success metric?** The realized success fraction among contexts in a bank during that bank's outage intervals.
 12. **How is recovery defined?** Within the affected bank's stream, the rolling 50-choice share to the affected gateway must be at most 10%; never-recovered events are counted.
 13. **Why a time split?** It trains on earlier transactions and evaluates on later ones, making temporal drift visible.
 14. **Why PR-AUC instead of accuracy?** Fraud is rare, so accuracy can hide poor detection of the positive class.
-15. **How is the block threshold chosen?** On validation scores at the specified false-positive target, then evaluated on held-out later data.
+15. **How are review and block thresholds chosen?** On a validation-only grid minimizing Amount-weighted cost under a review cap, then evaluated on a newer period. Amount is a proxy; currency, actual fraud loss, and review capacity are unknown.
 16. **Why is SHAP separate?** Explanation computation is slower and should not be part of every score request.
-17. **What does the load test measure?** Local HTTP round-trip latency and throughput under the saved concurrency setting, not production network latency.
+17. **What does the load test measure?** Fixed-worker client-observed local HTTP latency and throughput. Inference is reported separately; the difference includes HTTP, JSON, queueing, loopback, and response decode, not production network latency.
 18. **Can the LLM block a transaction?** No. It produces a validated post-decision report; the scoring model and threshold own the decision.
 19. **What happens when the investigator invents a risk factor?** Validation rejects the response, retries once, then returns a constrained review template.
-20. **What would you change with real data?** Validate temporal drift and label delay, tune thresholds to an explicit business cost, profile production features and network hops, and calibrate explanations with domain reviewers.
+20. **What would you change before real deployment?** Validate temporal drift and label delay, replace Amount proxies with agreed loss and review costs, test outage detection under production-like traffic, profile the deployment topology, and require durable idempotency plus operator controls before a real gateway adapter.
 
 ## What I would do differently with real data
 
