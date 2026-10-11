@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 PYTEST ?= .venv/bin/pytest
 
-.PHONY: test bench world train serve loadtest pipeline docs clean-generated verify lint
+.PHONY: test bench world train serve loadtest pipeline outage-detector docs clean-generated verify lint
 
 test:
 	$(PYTEST) -q
@@ -18,8 +18,12 @@ loadtest:
 pipeline:
 	$(PYTHON) -m marg.pipeline
 
+outage-detector:
+	$(PYTHON) -m bench.run_outage_detector --seed 7 --seeds 20 --horizon 20000
+
 bench:
 	$(PYTHON) -m bench.run_routing --seed 7 --seeds 20 --horizon 20000
+	$(PYTHON) -m bench.run_outage_detector --seed 7 --seeds 20 --horizon 20000
 	$(PYTHON) -m bench.run_window_sweep
 	$(PYTHON) -m marg.fraud.train --data data/creditcard.csv --seed 7
 	$(PYTHON) -m bench.run_loadtest
@@ -27,7 +31,7 @@ bench:
 	$(PYTHON) scripts/generate_readme.py
 
 serve:
-	$(PYTHON) -m uvicorn marg.fraud.serve:app --host 127.0.0.1 --port 8000
+	$(PYTHON) -m uvicorn marg.fraud.serve:app --host 127.0.0.1 --port 8000 --workers 4
 
 docs:
 	$(PYTHON) scripts/generate_readme.py
