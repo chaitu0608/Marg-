@@ -1,0 +1,98 @@
+{
+  "seed": 101,
+  "horizon": 8000,
+  "thompson": [
+    {
+      "window": 50,
+      "metrics": {
+        "success_rate": 0.908125,
+        "outage_success_rate": 0.7669902912621359,
+        "median_recovery_ticks": 56.5,
+        "never_recovered": 0
+      }
+    },
+    {
+      "window": 100,
+      "metrics": {
+        "success_rate": 0.908625,
+        "outage_success_rate": 0.7864077669902912,
+        "median_recovery_ticks": 48.0,
+        "never_recovered": 0
+      }
+    },
+    {
+      "window": 200,
+      "metrics": {
+        "success_rate": 0.907875,
+        "outage_success_rate": 0.7864077669902912,
+        "median_recovery_ticks": 53.0,
+        "never_recovered": 0
+      }
+    },
+    {
+      "window": 500,
+      "metrics": {
+        "success_rate": 0.9085,
+        "outage_success_rate": 0.7864077669902912,
+        "median_recovery_ticks": 53.0,
+        "never_recovered": 0
+      }
+    },
+    {
+      "window": 1000,
+      "metrics": {
+        "success_rate": 0.90875,
+        "outage_success_rate": 0.7864077669902912,
+        "median_recovery_ticks": 53.0,
+        "never_recovered": 0
+      }
+    },
+    {
+      "window": 5000,
+      "metrics": {
+        "success_rate": 0.90875,
+        "outage_success_rate": 0.7864077669902912,
+        "median_recovery_ticks": 53.0,
+        "never_recovered": 0
+      }
+    }
+  ],
+  "epsilon_greedy": [
+    {
+      "epsilon": 0.01,
+      "metrics": {
+        "success_rate": 0.86375,
+        "outage_success_rate": 0.5533980582524272,
+        "median_recovery_ticks": 0.0,
+        "never_recovered": 1
+      }
+    },
+    {
+      "epsilon": 0.05,
+      "metrics": {
+        "success_rate": 0.887125,
+        "outage_success_rate": 0.5533980582524272,
+        "median_recovery_ticks": 0.0,
+        "never_recovered": 1
+      }
+    },
+    {
+      "epsilon": 0.1,
+      "metrics": {
+        "success_rate": 0.89925,
+        "outage_success_rate": 0.6504854368932039,
+        "median_recovery_ticks": 0.0,
+        "never_recovered": 1
+      }
+    },
+    {
+      "epsilon": 0.2,
+      "metrics": {
+        "success_rate": 0.89475,
+        "outage_success_rate": 0.6019417475728155,
+        "median_recovery_ticks": 97.5,
+        "never_recovered": 0
+      }
+    }
+  ]
+}

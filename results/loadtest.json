@@ -1,0 +1,40 @@
+{
+  "requests": 10000,
+  "concurrency": 32,
+  "elapsed_seconds": 14.426382749996264,
+  "throughput_rps": 693.1744549757346,
+  "p50_ms": 32.373416506743524,
+  "p95_ms": 123.68050030709125,
+  "p99_ms": 195.92218833378877,
+  "inference_p50_ms": 0.1858329924289137,
+  "inference_p95_ms": 0.26346635131631035,
+  "inference_p99_ms": 0.7328579957538756,
+  "target_p99_ms": 100.0,
+  "target_met": false,
+  "explain_known_fraud_example": {
+    "example_label": 1,
+    "top_features": [
+      {
+        "feature": "V14",
+        "contribution": 4.610917008416543
+      },
+      {
+        "feature": "V10",
+        "contribution": 3.713475950830254
+      },
+      {
+        "feature": "V4",
+        "contribution": 2.64189845248067
+      },
+      {
+        "feature": "V12",
+        "contribution": 2.2551015439998525
+      },
+      {
+        "feature": "V17",
+        "contribution": 1.0133099131709635
+      }
+    ]
+  },
+  "bottleneck": "HTTP round-trip, event-loop scheduling, and JSON overhead dominate the tail."
+}

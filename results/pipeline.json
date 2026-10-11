@@ -1,0 +1,10 @@
+{
+  "dataset_path": "data/creditcard.csv",
+  "test_transactions": 42721,
+  "blocked_fraud_rate": 0.7884615384615384,
+  "false_block_rate": 0.004827860976352856,
+  "block_fraction": 0.005781699866576157,
+  "review_queue_count": 347,
+  "routing_success_rate": 0.8262701888213966,
+  "routed_transactions": 42474
+}

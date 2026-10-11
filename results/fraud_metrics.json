@@ -1,0 +1,83 @@
+{
+  "dataset": "real Kaggle Credit Card Fraud Detection via Zenodo mirror",
+  "dataset_path": "data/creditcard.csv",
+  "rows": 284807,
+  "fraud_rate": 0.001727485630620034,
+  "split_sizes": {
+    "train": 199368,
+    "validation": 42718,
+    "test": 42721
+  },
+  "split_time_ranges": {
+    "train": [
+      0.0,
+      132929.0
+    ],
+    "validation": [
+      132930.0,
+      151328.0
+    ],
+    "test": [
+      151329.0,
+      172792.0
+    ]
+  },
+  "pr_auc": 0.760500541325531,
+  "recall_at_1pct_fpr": 0.8269230769230769,
+  "precision_at_block_threshold": 0.1659919028340081,
+  "confusion_matrix": [
+    [
+      42463,
+      206
+    ],
+    [
+      11,
+      41
+    ]
+  ],
+  "block_threshold": 0.05284271519596658,
+  "review_threshold": 0.013678734041381698,
+  "validation_fpr_at_block_threshold": 0.005625615301673621,
+  "validation_fpr_at_review_threshold": 0.015142281187004829,
+  "feature_names": [
+    "Time",
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "V5",
+    "V6",
+    "V7",
+    "V8",
+    "V9",
+    "V10",
+    "V11",
+    "V12",
+    "V13",
+    "V14",
+    "V15",
+    "V16",
+    "V17",
+    "V18",
+    "V19",
+    "V20",
+    "V21",
+    "V22",
+    "V23",
+    "V24",
+    "V25",
+    "V26",
+    "V27",
+    "V28",
+    "Amount"
+  ],
+  "model_parameters": {
+    "n_estimators": 250,
+    "learning_rate": 0.05,
+    "num_leaves": 31,
+    "max_delta_step": 1.0,
+    "min_child_samples": 50,
+    "reg_lambda": 2.0,
+    "scale_pos_weight": 518.1875
+  }
+}

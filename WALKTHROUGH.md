@@ -1,0 +1,78 @@
+# Marg interview walkthrough
+
+This guide describes the code as implemented. The routing world and traffic are synthetic. Fraud metrics are only meaningful for the dataset path and saved model run recorded in `results/fraud_metrics.json`.
+
+## 1. World simulator and common random numbers
+
+`src/marg/sim/world.py:make_world` samples a baseline rate for every gateway/context pair, adds a bounded per-tick random walk, creates outage intervals, and precomputes one uniform draw per tick and gateway. `World.p_true` exposes true rates to the benchmark, while routing modules receive only the context, tick, and observed binary outcome through the `Router` protocol in `src/marg/routing/base.py`.
+
+The benchmark computes an outcome as the precomputed uniform draw being less than the selected gateway's true probability. It uses the same world, transaction contexts, and uniform array for every strategy. That common-random-numbers design makes strategy differences come from their routing choices instead of independent luck. The uniforms are keyed by transaction and gateway, so a policy can choose a different gateway and still see that gateway's fixed draw for that transaction.
+
+**Edge cases:** Outage intervals are end-exclusive and may overlap; overlapping events multiply their outage factors. The raw random walk is clipped, while an outage's separate multiplier can take the effective probability below the raw lower bound. A query outside the horizon clamps to its nearest endpoint.
+
+## 2. Sliding-window Thompson update
+
+`src/marg/routing/thompson.py:SlidingWindowThompsonRouter.select` samples from `Beta(1 + wins, 1 + losses)` for each gateway in the requested context and picks the highest sampled rate. `update` appends only the selected gateway's observed success or failure to its bounded deque. A new observation evicts the oldest one once that gateway/context window is full.
+
+The Beta posterior represents uncertainty about a binary success probability. A poorly observed gateway has a broad posterior, so it sometimes produces a high sample and gets explored. As evidence grows, the posterior narrows around the observed rate and the better gateway is selected more often. A fixed-size deque makes old observations stop influencing the current posterior after enough new outcomes.
+
+**Edge cases:** Every gateway starts with a uniform Beta(1,1) prior, so the policy needs no true rate at cold start. Gateways with no observations remain selectable. `window=1` keeps only the latest outcome; the implementation expects a positive window.
+
+## 3. Cumulative regret and recovery detection
+
+`bench/run_routing.py:run_one` computes per-tick expected regret as the best true rate for that context minus the selected gateway's true rate, then sums it. This uses expected rates rather than realized binary outcomes, which reduces outcome noise in the regret metric. The oracle is used only for evaluation.
+
+`bench/run_routing.py:_recovery_times` scans affected-bank transactions after each outage starts. It records the first point where the last 50 such transactions include at most five choices of the degraded gateway. If that condition never appears before the world ends, the event is retained as `null` and counted under `never_recovered`; it is not silently dropped from the failure count.
+
+**Edge cases:** Recovery is measured in affected-bank transactions, not wall-clock ticks. A gateway can already be used rarely at outage onset; the earliest eligible recovery still requires a full 50 affected-bank observations. Very late outages can be censored by the end of the simulated horizon.
+
+## 4. Fraud time split, thresholds, and PR-AUC
+
+`src/marg/fraud/data.py:time_split` sorts rows by `Time`, then puts the earliest portion in training, the next portion in validation, and the latest portion in test. `src/marg/fraud/train.py:train` fits LightGBM with a positive-class weight computed from training labels. The validation set chooses the block threshold at a 1% false-positive target and the lower review threshold at a 5% target. Test metrics are then saved to `results/fraud_metrics.json`.
+
+Accuracy is misleading for a rare class: a classifier can predict almost everything as legitimate and still score high accuracy while missing fraud. PR-AUC reports the precision/recall tradeoff for the positive class. Recall at a fixed false-positive rate reports a concrete operating point. The test split remains chronologically later than the training split to expose temporal shift.
+
+**Edge cases:** A real input must have the expected columns and approximately the expected row count. Threshold selection is discrete, so a threshold may land below the requested false-positive rate. Tied timestamps stay in stable row order; the split is by ordered row position rather than requiring every duplicate timestamp to stay together.
+
+## 5. SHAP, `/score`, and latency
+
+`src/marg/fraud/serve.py:create_app` loads the model and thresholds at startup. `/score` converts the 30 numeric values to a NumPy row and performs model inference and threshold selection. It does not instantiate the explainer. `/explain` lazily creates the SHAP tree explainer and returns the largest absolute contributions.
+
+Keeping explanations off `/score` avoids making every allow/review/block request pay SHAP's compute cost. `bench/run_loadtest.py` measures end-to-end local HTTP request latency, including HTTP, JSON, and loopback overhead. That measured latency is not pure model inference time; the saved bottleneck note names the included HTTP and serialization work.
+
+**Edge cases:** The API validates the feature count before prediction. If the saved model or threshold file is missing, service startup fails rather than inventing a fallback model. SHAP output has to be requested explicitly and may take longer than scoring.
+
+## 6. Investigator guardrails
+
+`src/marg/agent/investigator.py:Investigator.report` builds a prompt from the transaction, model score, and supplied SHAP factors. It validates the returned JSON as `CaseReport`, then checks that every risk factor is in the supplied list. It retries once after invalid output and then returns a templated review report. Inputs, model output, validation failures, and fallback are logged.
+
+The investigator has no API to change a model score, a routing choice, or an allow/review/block result. `MockLLM` makes tests deterministic and keeps tests offline; `default_llm` selects it when no API key exists and an environment-keyed OpenAI adapter otherwise. The pipeline records review cases in a queue and does not call any LLM.
+
+**Edge cases:** Malformed JSON, an unsupported action, an out-of-range confidence, or an invented factor is rejected. The fallback lists only factors already provided by SHAP and recommends review.
+
+## Likely interview questions
+
+1. **What problem does Marg demonstrate?** Two sequential payment decisions: fraud scoring and gateway routing, evaluated with synthetic routing conditions and the dataset named in the fraud result file.
+2. **Why simulate gateway behavior?** It makes drift and outages reproducible while keeping the project independent of real payment integrations.
+3. **How is leakage prevented?** Router methods accept only context, tick, gateway, and observed success; only benchmark evaluation code reads true rates.
+4. **What are common random numbers?** All policies share the same world and transaction/gateway uniform draws so their outcomes are paired fairly.
+5. **What does expected regret measure?** The sum of the best gateway's true probability minus the chosen gateway's true probability at each tick.
+6. **Why use Thompson sampling?** Posterior sampling explores uncertain choices while favoring arms with strong recent evidence.
+7. **What does the window do?** It bounds how much old feedback can affect the current posterior, which lets the policy respond to changing rates.
+8. **What does a longer window cost?** It reduces sampling noise but can make adaptation slower; use the saved sweep rather than claiming one window is universally best.
+9. **How does cold start work?** Each gateway begins from the same Beta(1,1) prior.
+10. **How is an outage known to the router?** It is not; only evaluation code sees the schedule. The router receives binary results.
+11. **What is the outage success metric?** The realized success fraction among contexts in a bank during that bank's outage intervals.
+12. **How is recovery defined?** Within the affected bank's stream, the rolling 50-choice share to the affected gateway must be at most 10%; never-recovered events are counted.
+13. **Why a time split?** It trains on earlier transactions and evaluates on later ones, making temporal drift visible.
+14. **Why PR-AUC instead of accuracy?** Fraud is rare, so accuracy can hide poor detection of the positive class.
+15. **How is the block threshold chosen?** On validation scores at the specified false-positive target, then evaluated on held-out later data.
+16. **Why is SHAP separate?** Explanation computation is slower and should not be part of every score request.
+17. **What does the load test measure?** Local HTTP round-trip latency and throughput under the saved concurrency setting, not production network latency.
+18. **Can the LLM block a transaction?** No. It produces a validated post-decision report; the scoring model and threshold own the decision.
+19. **What happens when the investigator invents a risk factor?** Validation rejects the response, retries once, then returns a constrained review template.
+20. **What would you change with real data?** Validate temporal drift and label delay, tune thresholds to an explicit business cost, profile production features and network hops, and calibrate explanations with domain reviewers.
+
+## What I would do differently with real data
+
+I would separate feature and label timestamps, account for delayed fraud labels, test on later live-like periods, calibrate thresholds against an agreed financial cost, monitor drift and gateway health independently, and evaluate privacy-safe explanations with investigators. I would also benchmark the service in its actual deployment topology before claiming a latency target.
