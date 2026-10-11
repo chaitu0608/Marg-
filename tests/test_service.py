@@ -24,6 +24,8 @@ def test_score_returns_decision_without_explanation(tmp_path, monkeypatch):
         response = client.post("/score", json=body)
         assert response.status_code == 200
         assert response.json()["decision"] == "block"
+        assert response.json()["inference_ms"] >= 0.0
+        assert float(response.headers["x-marg-app-ms"]) >= response.json()["inference_ms"]
         assert app.state.explainer is None
 
 

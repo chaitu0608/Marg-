@@ -1,14 +1,20 @@
 {
   "requests": 10000,
   "concurrency": 32,
-  "elapsed_seconds": 14.426382749996264,
-  "throughput_rps": 693.1744549757346,
-  "p50_ms": 32.373416506743524,
-  "p95_ms": 123.68050030709125,
-  "p99_ms": 195.92218833378877,
-  "inference_p50_ms": 0.1858329924289137,
-  "inference_p95_ms": 0.26346635131631035,
-  "inference_p99_ms": 0.7328579957538756,
+  "elapsed_seconds": 13.223195957994903,
+  "throughput_rps": 756.2468280562597,
+  "p50_ms": 20.36833349848166,
+  "p95_ms": 144.39310865200233,
+  "p99_ms": 235.92356499415484,
+  "inference_p50_ms": 0.1768750007613562,
+  "inference_p95_ms": 0.23642319283680982,
+  "inference_p99_ms": 0.3830971800198316,
+  "app_processing_p50_ms": 1.2068124999999998,
+  "app_processing_p95_ms": 1.9719273999999998,
+  "app_processing_p99_ms": 2.6565255000000016,
+  "outside_app_p99_ms": 234.83104416080477,
+  "non_inference_overhead_p99_ms": 235.7033555849922,
+  "measurement": "fixed-worker HTTP clients with pre-encoded input; client latency includes response JSON decode; app timing spans request parse through response serialization",
   "target_p99_ms": 100.0,
   "target_met": false,
   "explain_known_fraud_example": {
@@ -16,7 +22,7 @@
     "top_features": [
       {
         "feature": "V14",
-        "contribution": 4.610917008416543
+        "contribution": 4.610917008416542
       },
       {
         "feature": "V10",
@@ -24,7 +30,7 @@
       },
       {
         "feature": "V4",
-        "contribution": 2.64189845248067
+        "contribution": 2.6418984524807057
       },
       {
         "feature": "V12",
@@ -36,5 +42,6 @@
       }
     ]
   },
-  "bottleneck": "HTTP round-trip, event-loop scheduling, and JSON overhead dominate the tail."
+  "server_workers": 4,
+  "bottleneck": "The client-observed tail is dominated by time outside the ASGI app (loopback transport, socket queueing, and client scheduling); app processing is 2.657 ms p99."
 }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import subprocess
@@ -18,46 +19,69 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 async def exercise(url: str, features: list[float], requests: int, concurrency: int) -> dict:
-    sem = asyncio.Semaphore(concurrency)
     latencies: list[float] = []
     inference_latencies: list[float] = []
-    async with httpx.AsyncClient(timeout=30) as client:
+    app_latencies: list[float] = []
+    request_body = json.dumps({"features": features}, separators=(",", ":")).encode()
+    headers = {"content-type": "application/json"}
+    limits = httpx.Limits(max_connections=concurrency,
+                          max_keepalive_connections=concurrency, keepalive_expiry=60.0)
+    async with httpx.AsyncClient(timeout=30, limits=limits) as client:
         async def one() -> None:
-            async with sem:
-                begin = time.perf_counter()
-                response = await client.post(url, json={"features": features})
-                response.raise_for_status()
-                payload = response.json()
-                if not 0.0 <= float(payload["score"]) <= 1.0:
-                    raise AssertionError("/score returned a value outside [0, 1]")
-                if payload["decision"] not in {"allow", "review", "block"}:
-                    raise AssertionError("/score returned an unsupported decision")
-                latencies.append((time.perf_counter() - begin) * 1_000)
-                inference_latencies.append(float(payload["latency_ms"]))
+            begin = time.perf_counter()
+            response = await client.post(url, content=request_body, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+            if not 0.0 <= float(payload["score"]) <= 1.0:
+                raise AssertionError("/score returned a value outside [0, 1]")
+            if payload["decision"] not in {"allow", "review", "block"}:
+                raise AssertionError("/score returned an unsupported decision")
+            latencies.append((time.perf_counter() - begin) * 1_000)
+            inference_latencies.append(float(payload["inference_ms"]))
+            app_latencies.append(float(response.headers["x-marg-app-ms"]))
 
         for _ in range(100):
             await one()
         start = time.perf_counter()
-        await asyncio.gather(*(one() for _ in range(requests)))
+        remaining = iter(range(requests))
+
+        async def worker() -> None:
+            for _ in remaining:
+                await one()
+
+        # Keep exactly `concurrency` request workers; avoid timing thousands of queued tasks.
+        await asyncio.gather(*(worker() for _ in range(concurrency)))
         elapsed = time.perf_counter() - start
     values = np.asarray(latencies[100:])
     model_values = np.asarray(inference_latencies[100:])
+    app_values = np.asarray(app_latencies[100:])
+    non_app_values = np.maximum(values - app_values, 0.0)
+    non_inference = np.maximum(values - model_values, 0.0)
     return {"requests": requests, "concurrency": concurrency, "elapsed_seconds": elapsed,
             "throughput_rps": requests / elapsed, "p50_ms": float(np.percentile(values, 50)),
             "p95_ms": float(np.percentile(values, 95)), "p99_ms": float(np.percentile(values, 99)),
             "inference_p50_ms": float(np.percentile(model_values, 50)),
             "inference_p95_ms": float(np.percentile(model_values, 95)),
             "inference_p99_ms": float(np.percentile(model_values, 99)),
+            "app_processing_p50_ms": float(np.percentile(app_values, 50)),
+            "app_processing_p95_ms": float(np.percentile(app_values, 95)),
+            "app_processing_p99_ms": float(np.percentile(app_values, 99)),
+            "outside_app_p99_ms": float(np.percentile(non_app_values, 99)),
+            "non_inference_overhead_p99_ms": float(np.percentile(non_inference, 99)),
+            "measurement": "fixed-worker HTTP clients with pre-encoded input; client latency includes response JSON decode; app timing spans request parse through response serialization",
             "target_p99_ms": 100.0, "target_met": bool(np.percentile(values, 99) < 100)}
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--server-workers", type=int, default=4)
+    args = parser.parse_args()
     data_path = ROOT / "data" / "creditcard.csv"
     frame = pd.read_csv(data_path)
     features = frame.iloc[0][FEATURES].astype(float).tolist()
     fraud_row = frame.loc[frame[LABEL] == 1].iloc[0][FEATURES].astype(float).to_numpy()
     command = [sys.executable, "-m", "uvicorn", "marg.fraud.serve:app", "--host", "127.0.0.1",
-               "--port", "8877", "--log-level", "error"]
+               "--port", "8877", "--workers", str(args.server_workers), "--log-level", "error"]
     server = subprocess.Popen(command, cwd=ROOT)
     try:
         async def wait_ready() -> None:
@@ -91,7 +115,15 @@ def main() -> None:
         server.terminate()
         server.wait(timeout=10)
     metrics["explain_known_fraud_example"] = explanation_check
-    if metrics["inference_p99_ms"] >= metrics["p99_ms"] * 0.5:
+    metrics["server_workers"] = args.server_workers
+    if metrics["p99_ms"] >= metrics["target_p99_ms"] and (
+            metrics["outside_app_p99_ms"] > metrics["app_processing_p99_ms"] * 10):
+        metrics["bottleneck"] = (
+            "The client-observed tail is dominated by time outside the ASGI app "
+            "(loopback transport, socket queueing, and client scheduling); app processing is "
+            f"{metrics['app_processing_p99_ms']:.3f} ms p99."
+        )
+    elif metrics["inference_p99_ms"] >= metrics["p99_ms"] * 0.5:
         metrics["bottleneck"] = "Model inference and thread contention under concurrency dominate the tail."
     else:
         metrics["bottleneck"] = "HTTP round-trip, event-loop scheduling, and JSON overhead dominate the tail."

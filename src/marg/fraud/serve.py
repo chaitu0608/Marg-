@@ -11,6 +11,7 @@ import joblib
 import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from marg.fraud.explain import Explainer
 
@@ -23,34 +24,64 @@ class ScoreResponse(BaseModel):
     score: float
     decision: Literal["allow", "review", "block"]
     model_version: str
-    latency_ms: float
+    inference_ms: float
+
+
+class AppTimingMiddleware:
+    """Measure request parsing through response serialization, excluding socket delivery."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["path"] != "/score":
+            await self.app(scope, receive, send)
+            return
+        started = time.perf_counter()
+
+        async def timed_send(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                elapsed = (time.perf_counter() - started) * 1000
+                message = {**message, "headers": [
+                    *message.get("headers", []),
+                    (b"x-marg-app-ms", f"{elapsed:.6f}".encode("ascii")),
+                ]}
+            await send(message)
+
+        await self.app(scope, receive, timed_send)
 
 
 def create_app(model_path: str = "models/fraud_model.joblib",
                thresholds_path: str = "models/thresholds.json") -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.model = joblib.load(model_path)
+        model = joblib.load(model_path)
+        # Single-row scoring avoids starting several native LightGBM threads per request.
+        if hasattr(model, "set_params"):
+            model.set_params(n_jobs=1)
+        app.state.model = model
         app.state.thresholds = json.loads(Path(thresholds_path).read_text())
         app.state.explainer = None
         yield
 
     app = FastAPI(title="Marg fraud scoring", lifespan=lifespan)
+    app.add_middleware(AppTimingMiddleware)
 
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.post("/score", response_model=ScoreResponse)
-    def score(request: ScoreRequest) -> ScoreResponse:
-        started = time.perf_counter()
+    async def score(request: ScoreRequest) -> ScoreResponse:
         row = np.asarray(request.features, dtype=np.float32).reshape(1, -1)
+        started = time.perf_counter()
         value = float(app.state.model.predict_proba(row)[0, 1])
+        inference_ms = (time.perf_counter() - started) * 1000
         thresholds = app.state.thresholds
         decision = "block" if value >= thresholds["block"] else (
             "review" if value >= thresholds["review"] else "allow")
         return ScoreResponse(score=value, decision=decision, model_version="lightgbm-v1",
-                             latency_ms=(time.perf_counter() - started) * 1000)
+                             inference_ms=inference_ms)
 
     @app.post("/explain")
     def explain(request: ScoreRequest) -> dict:
