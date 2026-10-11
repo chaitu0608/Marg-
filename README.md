@@ -2,6 +2,8 @@
 
 Marg is a small, reproducible simulation of two payment decisions: routing a transaction across drifting, outage-prone gateways, and scoring it for fraud with a gradient-boosted model. Gateway behavior and routing traffic are synthetic; fraud metrics below use the data source recorded in the saved result file.
 
+The name is a sentimental nod to the Hindi word **मार्ग (mārg)**, meaning “path” or “way.” It fits a project about the path each payment takes—from scoring, through a routing choice, to an outcome that helps the system learn.
+
 ## Architecture
 
 ```text
@@ -77,3 +79,10 @@ Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install 
 - The fraud dataset uses anonymized PCA features and historical European card transactions; this does not establish performance on current or Marg-specific traffic.
 - Local HTTP load-test latency includes serialization and loopback networking and does not represent a production deployment.
 - SHAP explanations are separate post-score work and are not included in `/score` latency.
+
+## Next improvements
+
+- Profile the service and reduce HTTP and JSON overhead first: the measured p99 is 195.922 ms, while model inference p99 is below 1 ms.
+- Evaluate fraud thresholds against explicit review and fraud-loss costs, and validate them on newer time periods before considering deployment.
+- Add a routing outage detector based only on observed outcomes, then test its false alarms and recovery delay under changing traffic.
+- Add operational safeguards and replay tests before connecting any real payment gateway; the current gateway world is synthetic.
