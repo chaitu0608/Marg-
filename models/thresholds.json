@@ -1,8 +1,9 @@
 {
-  "block": 0.05284271519596658,
-  "review": 0.013678734041381698,
-  "validation_target_fpr": {
-    "block": 0.01,
-    "review": 0.05
-  }
+  "block": 0.997833089938713,
+  "review": 0.08647483567113655,
+  "selection": "validation amount-weighted cost with review capacity",
+  "max_review_rate": 0.01,
+  "review_cost_amount_units": 1.0,
+  "validation_cost_amount_units": 356.55,
+  "validation_review_count": 195
 }

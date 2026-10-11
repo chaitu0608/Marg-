@@ -24,21 +24,48 @@
   },
   "pr_auc": 0.760500541325531,
   "recall_at_1pct_fpr": 0.8269230769230769,
-  "precision_at_block_threshold": 0.1659919028340081,
+  "precision_at_block_threshold": 1.0,
+  "cost_policy": {
+    "selection_period": "validation; test is a strictly newer time period",
+    "amount_interpretation": "dataset Amount units; currency and actual fraud loss are unknown",
+    "review_assumption": "manual review resolves fraud without further loss",
+    "max_review_rate": 0.01,
+    "review_cost_amount_units": 1.0,
+    "validation": {
+      "total_cost_amount_units": 356.55,
+      "missed_fraud_amount_units": 161.55,
+      "false_block_amount_units": 0.0,
+      "review_cost_amount_units": 195.0,
+      "review_count": 195,
+      "review_rate": 0.004564820450395618,
+      "false_block_count": 0,
+      "missed_fraud_count": 7
+    },
+    "newer_test_period": {
+      "total_cost_amount_units": 2527.2000000000003,
+      "missed_fraud_amount_units": 2362.2000000000003,
+      "false_block_amount_units": 0.0,
+      "review_cost_amount_units": 165.0,
+      "review_count": 165,
+      "review_rate": 0.003862269141639943,
+      "false_block_count": 0,
+      "missed_fraud_count": 11
+    }
+  },
   "confusion_matrix": [
     [
-      42463,
-      206
+      42669,
+      0
     ],
     [
-      11,
-      41
+      32,
+      20
     ]
   ],
-  "block_threshold": 0.05284271519596658,
-  "review_threshold": 0.013678734041381698,
-  "validation_fpr_at_block_threshold": 0.005625615301673621,
-  "validation_fpr_at_review_threshold": 0.015142281187004829,
+  "block_threshold": 0.997833089938713,
+  "review_threshold": 0.08647483567113655,
+  "validation_fpr_at_block_threshold": 0.0,
+  "validation_fpr_at_review_threshold": 0.003867610519900614,
   "feature_names": [
     "Time",
     "V1",

@@ -19,6 +19,7 @@ from sklearn.metrics import (
 )
 
 from marg.fraud.data import FEATURES, LABEL, load_creditcard, time_split
+from marg.fraud.thresholds import evaluate_cost_policy, select_cost_thresholds
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -34,15 +35,18 @@ def recall_at_fpr(y_true: np.ndarray, scores: np.ndarray, max_fpr: float = 0.01)
     return float(tpr[i]), threshold
 
 
-def train(path: str | Path = "data/creditcard.csv", seed: int = 7) -> dict:
+def train(path: str | Path = "data/creditcard.csv", seed: int = 7,
+          max_review_rate: float = 0.01, review_cost_amount_units: float = 1.0) -> dict:
     frame = load_creditcard(path)
     train_df, val_df, test_df = time_split(frame)
     x_train = train_df[FEATURES].to_numpy(dtype=np.float32)
     y_train = train_df[LABEL].to_numpy(dtype=np.int8)
     x_val = val_df[FEATURES].to_numpy(dtype=np.float32)
     y_val = val_df[LABEL].to_numpy(dtype=np.int8)
+    amount_val = val_df["Amount"].to_numpy(dtype=np.float64)
     x_test = test_df[FEATURES].to_numpy(dtype=np.float32)
     y_test = test_df[LABEL].to_numpy(dtype=np.int8)
+    amount_test = test_df["Amount"].to_numpy(dtype=np.float64)
     positives = int(y_train.sum())
     model = LGBMClassifier(n_estimators=250, learning_rate=0.05, num_leaves=31,
                            max_depth=-1, scale_pos_weight=(len(y_train) - positives) / positives,
@@ -52,8 +56,9 @@ def train(path: str | Path = "data/creditcard.csv", seed: int = 7) -> dict:
                            random_state=seed, n_jobs=4, verbosity=-1)
     model.fit(x_train, y_train)
     val_scores = model.predict_proba(x_val)[:, 1]
-    _, block_threshold = recall_at_fpr(y_val, val_scores, 0.01)
-    _, review_threshold = recall_at_fpr(y_val, val_scores, 0.05)
+    cost_thresholds = select_cost_thresholds(
+        y_val, val_scores, amount_val, max_review_rate, review_cost_amount_units)
+    block_threshold, review_threshold = cost_thresholds.block, cost_thresholds.review
     validation_block_fpr = float(np.mean(
         (val_scores >= block_threshold) & (y_val == 0))) / max(float(np.mean(y_val == 0)), 1e-12)
     validation_review_fpr = float(np.mean(
@@ -61,6 +66,12 @@ def train(path: str | Path = "data/creditcard.csv", seed: int = 7) -> dict:
     test_scores = model.predict_proba(x_test)[:, 1]
     test_recall, _ = recall_at_fpr(y_test, test_scores, 0.01)
     y_pred = (test_scores >= block_threshold).astype(np.int8)
+    validation_cost = evaluate_cost_policy(
+        y_val, val_scores, amount_val, review_threshold, block_threshold,
+        review_cost_amount_units)
+    test_cost = evaluate_cost_policy(
+        y_test, test_scores, amount_test, review_threshold, block_threshold,
+        review_cost_amount_units)
     precision, recall, _ = precision_recall_curve(y_test, test_scores)
     models_dir = ROOT / "models"
     results_dir = ROOT / "results"
@@ -69,7 +80,11 @@ def train(path: str | Path = "data/creditcard.csv", seed: int = 7) -> dict:
     joblib.dump(model, models_dir / "fraud_model.joblib")
     (models_dir / "thresholds.json").write_text(json.dumps({
         "block": float(block_threshold), "review": float(review_threshold),
-        "validation_target_fpr": {"block": 0.01, "review": 0.05}}, indent=2))
+        "selection": "validation amount-weighted cost with review capacity",
+        "max_review_rate": max_review_rate,
+        "review_cost_amount_units": review_cost_amount_units,
+        "validation_cost_amount_units": validation_cost["total_cost_amount_units"],
+        "validation_review_count": validation_cost["review_count"]}, indent=2))
     metrics = {
         "dataset": "real Kaggle Credit Card Fraud Detection via Zenodo mirror",
         "dataset_path": str(Path(path)), "rows": len(frame), "fraud_rate": float(frame[LABEL].mean()),
@@ -80,6 +95,15 @@ def train(path: str | Path = "data/creditcard.csv", seed: int = 7) -> dict:
         "pr_auc": float(average_precision_score(y_test, test_scores)),
         "recall_at_1pct_fpr": test_recall,
         "precision_at_block_threshold": float(precision_score(y_test, y_pred, zero_division=0)),
+        "cost_policy": {
+            "selection_period": "validation; test is a strictly newer time period",
+            "amount_interpretation": "dataset Amount units; currency and actual fraud loss are unknown",
+            "review_assumption": "manual review resolves fraud without further loss",
+            "max_review_rate": max_review_rate,
+            "review_cost_amount_units": review_cost_amount_units,
+            "validation": validation_cost,
+            "newer_test_period": test_cost,
+        },
         "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
         "block_threshold": float(block_threshold), "review_threshold": float(review_threshold),
         "validation_fpr_at_block_threshold": validation_block_fpr,
@@ -115,8 +139,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="data/creditcard.csv")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--max-review-rate", type=float, default=0.01)
+    parser.add_argument("--review-cost-amount-units", type=float, default=1.0)
     args = parser.parse_args()
-    print(json.dumps(train(args.data, args.seed), indent=2))
+    print(json.dumps(train(args.data, args.seed, args.max_review_rate,
+                          args.review_cost_amount_units), indent=2))
 
 
 if __name__ == "__main__":
