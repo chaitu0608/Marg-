@@ -69,3 +69,65 @@ def test_non_finite_or_empty_identifiers_are_rejected():
         guard.dispatch(command(amount=float("nan")))
     with pytest.raises(DispatchRejected, match="identifiers are required"):
         guard.dispatch(command(idempotency_key=" "))
+
+
+def test_ambiguous_timeout_fails_closed_and_prevents_guard_level_resubmission():
+    class TimeoutAdapter:
+        def __init__(self):
+            self.calls = []
+
+        def submit(self, **payload):
+            self.calls.append(payload)
+            raise TimeoutError("provider response timed out")
+
+    adapter = TimeoutAdapter()
+    guard = GatewayDispatchGuard(
+        adapter, live_enabled=True, allowlisted_gateways=frozenset({"gw-a"}), max_amount=50.0)
+    with pytest.raises(TimeoutError):
+        guard.dispatch(command())
+    with pytest.raises(DispatchRejected, match="already been used"):
+        guard.dispatch(command())
+    assert len(adapter.calls) == 1
+
+
+def test_adapter_retry_reuses_same_idempotency_key_after_timeout():
+    class IdempotentRetryAdapter:
+        def __init__(self):
+            self.calls = []
+
+        def submit(self, **payload):
+            # The fake provider remembers the key, so a repeated request has one logical effect.
+            self.calls.append(payload)
+            if len(self.calls) == 1:
+                raise TimeoutError("ambiguous response")
+            return "accepted"
+
+    provider = IdempotentRetryAdapter()
+
+    class RetryingAdapter:
+        def submit(self, **payload):
+            try:
+                return provider.submit(**payload)
+            except TimeoutError:
+                return provider.submit(**payload)
+
+    guard = GatewayDispatchGuard(
+        RetryingAdapter(), live_enabled=True, allowlisted_gateways=frozenset({"gw-a"}),
+        max_amount=50.0)
+    assert guard.dispatch(command()) == "accepted"
+    assert len(provider.calls) == 2
+    assert {call["idempotency_key"] for call in provider.calls} == {"txn-1"}
+    with pytest.raises(DispatchRejected, match="already been used"):
+        guard.dispatch(command())
+
+
+def test_rejected_decision_never_reaches_failure_adapter():
+    class UnexpectedAdapter:
+        def submit(self, **payload):
+            raise AssertionError("rejected decision reached the adapter")
+
+    guard = GatewayDispatchGuard(
+        UnexpectedAdapter(), live_enabled=True, allowlisted_gateways=frozenset({"gw-a"}),
+        max_amount=50.0)
+    with pytest.raises(DispatchRejected, match="only allow"):
+        guard.dispatch(command(decision="block"))
