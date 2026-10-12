@@ -22,6 +22,7 @@ async def exercise(url: str, features: list[float], requests: int, concurrency: 
     latencies: list[float] = []
     inference_latencies: list[float] = []
     app_latencies: list[float] = []
+    server_queue_latencies: list[float] = []
     request_body = json.dumps({"features": features}, separators=(",", ":")).encode()
     headers = {"content-type": "application/json"}
     limits = httpx.Limits(max_connections=concurrency,
@@ -39,6 +40,7 @@ async def exercise(url: str, features: list[float], requests: int, concurrency: 
             latencies.append((time.perf_counter() - begin) * 1_000)
             inference_latencies.append(float(payload["inference_ms"]))
             app_latencies.append(float(response.headers["x-marg-app-ms"]))
+            server_queue_latencies.append(float(response.headers["x-marg-server-queue-ms"]))
 
         for _ in range(100):
             await one()
@@ -55,7 +57,8 @@ async def exercise(url: str, features: list[float], requests: int, concurrency: 
     values = np.asarray(latencies[100:])
     model_values = np.asarray(inference_latencies[100:])
     app_values = np.asarray(app_latencies[100:])
-    non_app_values = np.maximum(values - app_values, 0.0)
+    queue_values = np.asarray(server_queue_latencies[100:])
+    outside_instrumented_values = np.maximum(values - app_values - queue_values, 0.0)
     non_inference = np.maximum(values - model_values, 0.0)
     return {"requests": requests, "concurrency": concurrency, "elapsed_seconds": elapsed,
             "throughput_rps": requests / elapsed, "p50_ms": float(np.percentile(values, 50)),
@@ -66,29 +69,36 @@ async def exercise(url: str, features: list[float], requests: int, concurrency: 
             "app_processing_p50_ms": float(np.percentile(app_values, 50)),
             "app_processing_p95_ms": float(np.percentile(app_values, 95)),
             "app_processing_p99_ms": float(np.percentile(app_values, 99)),
-            "outside_app_p99_ms": float(np.percentile(non_app_values, 99)),
+            "server_dispatch_queue_p50_ms": float(np.percentile(queue_values, 50)),
+            "server_dispatch_queue_p95_ms": float(np.percentile(queue_values, 95)),
+            "server_dispatch_queue_p99_ms": float(np.percentile(queue_values, 99)),
+            "client_loopback_and_response_p99_ms": float(
+                np.percentile(outside_instrumented_values, 99)),
             "non_inference_overhead_p99_ms": float(np.percentile(non_inference, 99)),
-            "measurement": "fixed-worker HTTP clients with pre-encoded input; client latency includes response JSON decode; app timing spans request parse through response serialization",
+            "measurement": "fixed-worker HTTP client with pre-encoded input; app timing spans ASGI dispatch through response serialization; server queue is Uvicorn header-parse-to-ASGI scheduling delay; residual includes client scheduling, loopback/socket transport, and response decoding",
             "target_p99_ms": 100.0, "target_met": bool(np.percentile(values, 99) < 100)}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-workers", type=int, default=4)
+    parser.add_argument("--url", help="Use a separately hosted instrumented Marg server.")
     args = parser.parse_args()
     data_path = ROOT / "data" / "creditcard.csv"
     frame = pd.read_csv(data_path)
     features = frame.iloc[0][FEATURES].astype(float).tolist()
     fraud_row = frame.loc[frame[LABEL] == 1].iloc[0][FEATURES].astype(float).to_numpy()
-    command = [sys.executable, "-m", "uvicorn", "marg.fraud.serve:app", "--host", "127.0.0.1",
-               "--port", "8877", "--workers", str(args.server_workers), "--log-level", "error"]
-    server = subprocess.Popen(command, cwd=ROOT)
+    command = [sys.executable, "-m", "marg.fraud.server", "--host", "127.0.0.1",
+               "--port", "8877", "--workers", str(args.server_workers)]
+    server = None if args.url else subprocess.Popen(
+        command, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    base_url = args.url.rstrip("/") if args.url else "http://127.0.0.1:8877"
     try:
         async def wait_ready() -> None:
             async with httpx.AsyncClient() as client:
                 for _ in range(100):
                     try:
-                        response = await client.get("http://127.0.0.1:8877/health")
+                        response = await client.get(f"{base_url}/health")
                         if response.status_code == 200:
                             return
                     except httpx.HTTPError:
@@ -98,7 +108,7 @@ def main() -> None:
         asyncio.run(wait_ready())
         async def explain_example() -> dict:
             async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post("http://127.0.0.1:8877/explain",
+                response = await client.post(f"{base_url}/explain",
                                              json={"features": fraud_row.tolist()})
                 response.raise_for_status()
                 served = response.json()["top_features"]
@@ -109,19 +119,24 @@ def main() -> None:
                 raise AssertionError("/explain returned an unknown feature name")
             return {"example_label": 1, "top_features": served}
 
-        explanation_check = asyncio.run(explain_example())
-        metrics = asyncio.run(exercise("http://127.0.0.1:8877/score", features, 10_000, 32))
+        explanation_check = asyncio.run(explain_example()) if server else None
+        metrics = asyncio.run(exercise(f"{base_url}/score", features, 10_000, 32))
     finally:
-        server.terminate()
-        server.wait(timeout=10)
+        if server is not None:
+            server.terminate()
+            server.wait(timeout=10)
     metrics["explain_known_fraud_example"] = explanation_check
-    metrics["server_workers"] = args.server_workers
+    metrics["server_workers"] = args.server_workers if server is not None else None
+    metrics["load_generator"] = (
+        "benchmark process host (local loopback server)" if server is not None
+        else "benchmark process host (external server URL)")
     if metrics["p99_ms"] >= metrics["target_p99_ms"] and (
-            metrics["outside_app_p99_ms"] > metrics["app_processing_p99_ms"] * 10):
+            metrics["client_loopback_and_response_p99_ms"]
+            > metrics["app_processing_p99_ms"] * 10):
         metrics["bottleneck"] = (
-            "The client-observed tail is dominated by time outside the ASGI app "
-            "(loopback transport, socket queueing, and client scheduling); app processing is "
-            f"{metrics['app_processing_p99_ms']:.3f} ms p99."
+            "The client-observed tail is dominated by client/loopback/socket/response time; "
+            f"ASGI processing is {metrics['app_processing_p99_ms']:.3f} ms p99 and measured "
+            f"Uvicorn dispatch queue is {metrics['server_dispatch_queue_p99_ms']:.3f} ms p99."
         )
     elif metrics["inference_p99_ms"] >= metrics["p99_ms"] * 0.5:
         metrics["bottleneck"] = "Model inference and thread contention under concurrency dominate the tail."

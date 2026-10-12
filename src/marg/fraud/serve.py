@@ -42,9 +42,16 @@ class AppTimingMiddleware:
         async def timed_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 elapsed = (time.perf_counter() - started) * 1000
-                message = {**message, "headers": [
+                queue_ms = scope.get("extensions", {}).get(
+                    "marg.server_dispatch_queue_ms")
+                headers = [
                     *message.get("headers", []),
                     (b"x-marg-app-ms", f"{elapsed:.6f}".encode("ascii")),
+                ]
+                if queue_ms is not None:
+                    headers.append((b"x-marg-server-queue-ms", f"{queue_ms:.6f}".encode("ascii")))
+                message = {**message, "headers": [
+                    *headers,
                 ]}
             await send(message)
 

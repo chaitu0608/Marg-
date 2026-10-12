@@ -1,20 +1,23 @@
 {
   "requests": 10000,
   "concurrency": 32,
-  "elapsed_seconds": 13.223195957994903,
-  "throughput_rps": 756.2468280562597,
-  "p50_ms": 20.36833349848166,
-  "p95_ms": 144.39310865200233,
-  "p99_ms": 235.92356499415484,
-  "inference_p50_ms": 0.1768750007613562,
-  "inference_p95_ms": 0.23642319283680982,
-  "inference_p99_ms": 0.3830971800198316,
-  "app_processing_p50_ms": 1.2068124999999998,
-  "app_processing_p95_ms": 1.9719273999999998,
-  "app_processing_p99_ms": 2.6565255000000016,
-  "outside_app_p99_ms": 234.83104416080477,
-  "non_inference_overhead_p99_ms": 235.7033555849922,
-  "measurement": "fixed-worker HTTP clients with pre-encoded input; client latency includes response JSON decode; app timing spans request parse through response serialization",
+  "elapsed_seconds": 22.530066917010117,
+  "throughput_rps": 443.85132262745464,
+  "p50_ms": 35.07325051759835,
+  "p95_ms": 238.99873749178363,
+  "p99_ms": 380.54490626789647,
+  "inference_p50_ms": 0.3234999894630164,
+  "inference_p95_ms": 0.42750204593176017,
+  "inference_p99_ms": 0.4724203437217512,
+  "app_processing_p50_ms": 2.177104,
+  "app_processing_p95_ms": 3.1962854499999995,
+  "app_processing_p99_ms": 3.749599920000001,
+  "server_dispatch_queue_p50_ms": 0.028,
+  "server_dispatch_queue_p95_ms": 0.038125,
+  "server_dispatch_queue_p99_ms": 0.04970842000000001,
+  "client_loopback_and_response_p99_ms": 377.4809388478966,
+  "non_inference_overhead_p99_ms": 380.24318492738547,
+  "measurement": "fixed-worker HTTP client with pre-encoded input; app timing spans ASGI dispatch through response serialization; server queue is Uvicorn header-parse-to-ASGI scheduling delay; residual includes client scheduling, loopback/socket transport, and response decoding",
   "target_p99_ms": 100.0,
   "target_met": false,
   "explain_known_fraud_example": {
@@ -30,7 +33,7 @@
       },
       {
         "feature": "V4",
-        "contribution": 2.6418984524807057
+        "contribution": 2.6418984524806985
       },
       {
         "feature": "V12",
@@ -43,5 +46,6 @@
     ]
   },
   "server_workers": 4,
-  "bottleneck": "The client-observed tail is dominated by time outside the ASGI app (loopback transport, socket queueing, and client scheduling); app processing is 2.657 ms p99."
+  "load_generator": "local client process",
+  "bottleneck": "The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 3.750 ms p99 and measured Uvicorn dispatch queue is 0.050 ms p99."
 }
