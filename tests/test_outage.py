@@ -1,6 +1,6 @@
 import inspect
 
-from marg.routing.outage import ObservedOutageDetector
+from marg.routing.outage import ConsecutiveOutcomeDetector, ObservedOutageDetector
 
 
 def test_detector_signals_from_observed_drop_and_recovers_from_observed_successes():
@@ -45,3 +45,15 @@ def test_seeded_outage_benchmark_counts_false_alarms_and_recovery_delays():
     assert result["false_alarm_count"] >= 0
     assert all(delay >= 0 for delay in result["detection_delay_ticks"])
     assert all(delay >= 0 for delay in result["recovery_delay_ticks"])
+
+
+def test_consecutive_outcome_baseline_alerts_and_clears_using_observations_only():
+    detector = ConsecutiveOutcomeDetector(failure_run=3, recovery_run=2)
+    assert detector.observe("bank_0", "gw_a", False, 0) is None
+    assert detector.observe("bank_0", "gw_a", False, 1) is None
+    detected = detector.observe("bank_0", "gw_a", False, 2)
+    assert detected is not None and detected.kind == "detected"
+    assert (detected.evidence_start_tick, detected.evidence_end_tick) == (0, 2)
+    assert detector.observe("bank_0", "gw_a", True, 3) is None
+    recovered = detector.observe("bank_0", "gw_a", True, 4)
+    assert recovered is not None and recovered.kind == "recovered"

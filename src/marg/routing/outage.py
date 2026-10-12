@@ -57,3 +57,44 @@ class ObservedOutageDetector:
             return OutageSignal("recovered", bank, gateway, tick, baseline_rate, recent_rate,
                                 recent[0][0], recent[-1][0])
         return None
+
+
+class ConsecutiveOutcomeDetector:
+    """Small run-length baseline that alerts on repeated failures and clears on successes."""
+
+    def __init__(self, failure_run: int = 5, recovery_run: int = 8) -> None:
+        if failure_run < 1 or recovery_run < 1:
+            raise ValueError("run lengths must be positive")
+        self.failure_run = failure_run
+        self.recovery_run = recovery_run
+        self.failures: dict[tuple[str, str], list[int]] = defaultdict(list)
+        self.successes: dict[tuple[str, str], list[int]] = defaultdict(list)
+        self.active: set[tuple[str, str]] = set()
+
+    def observe(self, bank: str, gateway: str, success: bool, tick: int) -> OutageSignal | None:
+        key = (bank, gateway)
+        if success:
+            self.failures[key].clear()
+            if key not in self.active:
+                return None
+            self.successes[key].append(tick)
+            if len(self.successes[key]) >= self.recovery_run:
+                self.active.remove(key)
+                evidence = self.successes[key][-self.recovery_run:]
+                self.successes[key].clear()
+                return OutageSignal("recovered", bank, gateway, tick, 1.0, 1.0,
+                                    evidence[0], evidence[-1])
+            return None
+
+        self.successes[key].clear()
+        # A success breaks a failure run; active alerts need no more failure history.
+        if key in self.active:
+            return None
+        self.failures[key].append(tick)
+        if len(self.failures[key]) < self.failure_run:
+            return None
+        self.active.add(key)
+        evidence = self.failures[key][-self.failure_run:]
+        self.failures[key].clear()
+        return OutageSignal("detected", bank, gateway, tick, 1.0, 0.0,
+                            evidence[0], evidence[-1])
