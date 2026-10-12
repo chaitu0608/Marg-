@@ -222,7 +222,7 @@
     {
       "max_review_rate": 0.01,
       "review_cost_amount_units_per_case": 0.0,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 144.16,
       "newer_test_period": {
@@ -239,7 +239,7 @@
     {
       "max_review_rate": 0.01,
       "review_cost_amount_units_per_case": 0.5,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 348.65999999999997,
       "newer_test_period": {
@@ -256,7 +256,7 @@
     {
       "max_review_rate": 0.01,
       "review_cost_amount_units_per_case": 1.0,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 553.16,
       "newer_test_period": {
@@ -273,7 +273,7 @@
     {
       "max_review_rate": 0.01,
       "review_cost_amount_units_per_case": 5.0,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 2189.16,
       "newer_test_period": {
@@ -307,7 +307,7 @@
     {
       "max_review_rate": 0.02,
       "review_cost_amount_units_per_case": 0.5,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 348.65999999999997,
       "newer_test_period": {
@@ -324,7 +324,7 @@
     {
       "max_review_rate": 0.02,
       "review_cost_amount_units_per_case": 1.0,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 553.16,
       "newer_test_period": {
@@ -341,7 +341,7 @@
     {
       "max_review_rate": 0.02,
       "review_cost_amount_units_per_case": 5.0,
-      "review_threshold": 0.030780454364443495,
+      "review_threshold": 0.030780454364443505,
       "block_threshold": 0.997833089938713,
       "validation_cost_amount_units": 2189.16,
       "newer_test_period": {
