@@ -74,6 +74,10 @@ Transaction -> Fraud score -> allow / review / block
 
 The investigator only writes a case report after the scoring decision. It cannot modify the score, decision, or route.
 
+## Interactive project site
+
+`make serve` also serves a minimal single-page explanation of the routing and fraud flows, charts generated from saved results, and a live `/score` and `/explain` playground using a clearly labeled all-zero demo vector. The benchmark values come from `/api/results`, which reads the committed JSON files. The optional Web3 section explains a hash-only result receipt; it does not connect a wallet or affect payment decisions.
+
 ## Results
 
 Routing averages and 95% confidence intervals use {routing['seed_count']} seeded worlds with {routing['horizon']:,} ticks per seed. Recovery is the median successful recovery time in affected-bank transactions; the last column reports never-recovered events explicitly.
@@ -157,7 +161,7 @@ See [the sensitivity plot](results/fraud_sensitivity.png) and `results/fraud_sen
 
 ## Run it
 
-Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install libomp`. Install the project with `python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Put the real `creditcard.csv` at `data/creditcard.csv`, then run `make test`, `make bench`, or `make verify`. `make serve` starts the API. To use an external, instrumented Marg server from another load-generator host, run `python -m bench.run_loadtest --url http://SERVER:8000`; the current recorded benchmark uses a local client process. `/score` uses model inference only; `/explain` computes SHAP separately. Run `pip install -e '.[mcp]'` and `make mcp` to expose the optional read-only Marg MCP server over stdio; see [docs/MCP.md](docs/MCP.md) for Codex configuration.
+Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install libomp`. Install the project with `python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Put the real `creditcard.csv` at `data/creditcard.csv`, then run `make test`, `make bench`, or `make verify`. `make serve` starts the API and minimal project site at `http://127.0.0.1:8000`; the site reads saved metrics from `/api/results` and its playground calls `/score` and `/explain` separately. To use an external, instrumented Marg server from another load-generator host, run `python -m bench.run_loadtest --url http://SERVER:8000`; the saved run used **{latency['load_generator']}**. `/score` uses model inference only; `/explain` computes SHAP separately. Run `pip install -e '.[mcp]'` and `make mcp` to expose the optional read-only Marg MCP server over stdio; see [docs/MCP.md](docs/MCP.md) for Codex configuration. `make attest` creates local SHA-256 commitments for saved results and source; see [docs/WEB3.md](docs/WEB3.md) for the optional EVM receipt architecture. Install Foundry and run `make web3-test` for the receipt contract tests; no public-chain deployment is included.
 
 ## Limitations
 
@@ -170,6 +174,7 @@ Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install 
 - SHAP explanations are separate post-score work and are not included in `/score` latency.
 - Gateway dispatch is fail-closed and has no live adapter. Its idempotency memory is process-local; production requires durable idempotency, authorization, reconciliation, and operator controls.
 - The optional MCP server exposes saved result files through a fixed allowlist. It cannot change decisions or dispatch payments.
+- The optional EVM contract stores only hashes and a publisher/time receipt; it neither validates the experiment nor participates in live payment decisions. No public-chain deployment is included.
 - GitHub Actions runs unit tests, Ruff, generated-README consistency, and an MCP stdio smoke test; full `make verify` stays local because the real dataset is not stored in Git.
 
 ## Next improvements

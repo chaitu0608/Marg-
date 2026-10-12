@@ -42,7 +42,7 @@ The instrumented server adds a narrow queue measurement in `src/marg/fraud/serve
 
 The optional `marg.mcp_server` exposes fixed-name result files, saved fraud sensitivity cases, and guardrail descriptions over MCP stdio. It is read-only and cannot execute shell commands, accept arbitrary file paths, change decisions, or call a gateway. This lets a compatible agent inspect Marg evidence while keeping the fraud model and router as decision owners. Install with `pip install -e '.[mcp]'`, then run `make mcp`.
 
-A graphical frontend is not necessary: the API, deterministic CLI benchmarks, generated plots/tables, CI, and optional MCP tools are the project interface. A dashboard would make sense later if an operator workflow or live monitoring use case were added.
+The project now has a small static site served by the existing FastAPI app. It reads a fixed allowlist of saved JSON results and exposes a clearly labeled all-zero API demo. It adds no frontend framework or scoring logic. The site explains the experiment and its limitations; it is not an operator dashboard. The optional EVM registry only attests to hashes of source and result files and never influences payments or model decisions.
 
 ## Ambiguity
 

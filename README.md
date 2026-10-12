@@ -18,6 +18,10 @@ Transaction -> Fraud score -> allow / review / block
 
 The investigator only writes a case report after the scoring decision. It cannot modify the score, decision, or route.
 
+## Interactive project site
+
+`make serve` also serves a minimal single-page explanation of the routing and fraud flows, charts generated from saved results, and a live `/score` and `/explain` playground using a clearly labeled all-zero demo vector. The benchmark values come from `/api/results`, which reads the committed JSON files. The optional Web3 section explains a hash-only result receipt; it does not connect a wallet or affect payment decisions.
+
 ## Results
 
 Routing averages and 95% confidence intervals use 20 seeded worlds with 20,000 ticks per seed. Recovery is the median successful recovery time in affected-bank transactions; the last column reports never-recovered events explicitly.
@@ -49,15 +53,15 @@ Accuracy is not a headline metric because the legitimate class dominates; predic
 |---|---:|
 | Requests at concurrency | 10,000 at 32 |
 | Uvicorn workers | 4 |
-| p50 / p95 / p99 latency | 35.073 / 238.999 / 380.545 ms |
-| Throughput | 443.85 requests/s |
+| p50 / p95 / p99 latency | 21.078 / 141.180 / 231.384 ms |
+| Throughput | 755.41 requests/s |
 | p99 target (100 ms) | missed |
-| Bottleneck | The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 3.750 ms p99 and measured Uvicorn dispatch queue is 0.050 ms p99. |
+| Bottleneck | The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 2.311 ms p99 and measured Uvicorn dispatch queue is 0.034 ms p99. |
 | Measurement method | fixed-worker HTTP client with pre-encoded input; app timing spans ASGI dispatch through response serialization; server queue is Uvicorn header-parse-to-ASGI scheduling delay; residual includes client scheduling, loopback/socket transport, and response decoding |
-| App processing p99 | 3.750 ms |
-| Uvicorn dispatch queue p99 | 0.050 ms |
-| Client/loopback/response residual p99 (paired estimate) | 377.481 ms |
-| Non-inference overhead p99 (paired request estimate) | 380.243 ms |
+| App processing p99 | 2.311 ms |
+| Uvicorn dispatch queue p99 | 0.034 ms |
+| Client/loopback/response residual p99 (paired estimate) | 230.121 ms |
+| Non-inference overhead p99 (paired request estimate) | 231.217 ms |
 
 | End-to-end test-stream metric | Measured value |
 |---|---:|
@@ -120,7 +124,7 @@ See [the sensitivity plot](results/fraud_sensitivity.png) and `results/fraud_sen
 
 ## Run it
 
-Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install libomp`. Install the project with `python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Put the real `creditcard.csv` at `data/creditcard.csv`, then run `make test`, `make bench`, or `make verify`. `make serve` starts the API. To use an external, instrumented Marg server from another load-generator host, run `python -m bench.run_loadtest --url http://SERVER:8000`; the current recorded benchmark uses a local client process. `/score` uses model inference only; `/explain` computes SHAP separately. Run `pip install -e '.[mcp]'` and `make mcp` to expose the optional read-only Marg MCP server over stdio; see [docs/MCP.md](docs/MCP.md) for Codex configuration.
+Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install libomp`. Install the project with `python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Put the real `creditcard.csv` at `data/creditcard.csv`, then run `make test`, `make bench`, or `make verify`. `make serve` starts the API and minimal project site at `http://127.0.0.1:8000`; the site reads saved metrics from `/api/results` and its playground calls `/score` and `/explain` separately. To use an external, instrumented Marg server from another load-generator host, run `python -m bench.run_loadtest --url http://SERVER:8000`; the saved run used **benchmark process host (local loopback server)**. `/score` uses model inference only; `/explain` computes SHAP separately. Run `pip install -e '.[mcp]'` and `make mcp` to expose the optional read-only Marg MCP server over stdio; see [docs/MCP.md](docs/MCP.md) for Codex configuration. `make attest` creates local SHA-256 commitments for saved results and source; see [docs/WEB3.md](docs/WEB3.md) for the optional EVM receipt architecture. Install Foundry and run `make web3-test` for the receipt contract tests; no public-chain deployment is included.
 
 ## Limitations
 
@@ -133,6 +137,7 @@ Use Python 3.11; on macOS, install LightGBM's OpenMP runtime with `brew install 
 - SHAP explanations are separate post-score work and are not included in `/score` latency.
 - Gateway dispatch is fail-closed and has no live adapter. Its idempotency memory is process-local; production requires durable idempotency, authorization, reconciliation, and operator controls.
 - The optional MCP server exposes saved result files through a fixed allowlist. It cannot change decisions or dispatch payments.
+- The optional EVM contract stores only hashes and a publisher/time receipt; it neither validates the experiment nor participates in live payment decisions. No public-chain deployment is included.
 - GitHub Actions runs unit tests, Ruff, generated-README consistency, and an MCP stdio smoke test; full `make verify` stays local because the real dataset is not stored in Git.
 
 ## Next improvements
