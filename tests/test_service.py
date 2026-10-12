@@ -96,6 +96,7 @@ def test_portfolio_serves_page_and_saved_results(tmp_path, monkeypatch):
     assert "Mārg (मार्ग · maarg)" in page.text
     assert 'id="backend-tour"' in page.text
     assert "same precomputed world" in page.text
+    assert 'id="run-smoke"' in page.text
     assert "/docs" in page.text
     assert results.status_code == 200
     payload = results.json()
@@ -106,3 +107,5 @@ def test_portfolio_serves_page_and_saved_results(tmp_path, monkeypatch):
     assert css.status_code == 200 and "color-scheme:dark" in css.text
     assert "--lime:#d8ff63" in css.text
     assert javascript.status_code == 200 and "/api/results" in javascript.text
+    assert "requestSmokeCheck" in javascript.text
+    assert "not pytest" in javascript.text

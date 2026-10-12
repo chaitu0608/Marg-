@@ -152,7 +152,63 @@ async function requestExplain() {
   }
 }
 
+async function requestSmokeCheck() {
+  const button = $("#run-smoke");
+  const status = $("#smoke-status");
+  const checks = [];
+  button.disabled = true;
+  button.textContent = "Checking API routes…";
+  status.textContent = "Running safe browser API checks";
+  try {
+    const health = await fetch("/health");
+    if (!health.ok || (await health.json()).status !== "ok") throw new Error("GET /health failed");
+    checks.push("GET /health: ok");
+
+    const resultsResponse = await fetch("/api/results");
+    if (!resultsResponse.ok) throw new Error(`GET /api/results returned ${resultsResponse.status}`);
+    const results = await resultsResponse.json();
+    if (!results.routing || !results.fraud || !results.latency) throw new Error("Saved results response is incomplete");
+    checks.push("GET /api/results: saved benchmark sections present");
+
+    const scoreResponse = await fetch("/score", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(demoRequest),
+    });
+    const score = await scoreResponse.json();
+    if (!scoreResponse.ok || !["allow", "review", "block"].includes(score.decision)) {
+      throw new Error(score.detail || "POST /score failed validation");
+    }
+    checks.push(`POST /score: ${score.decision}, ${Number(score.inference_ms).toFixed(3)} ms model inference`);
+
+    const explainResponse = await fetch("/explain", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(demoRequest),
+    });
+    const explanation = await explainResponse.json();
+    if (!explainResponse.ok || !Array.isArray(explanation.top_features)) {
+      throw new Error(explanation.detail || "POST /explain returned no top_features list");
+    }
+    checks.push(`POST /explain: ${explanation.top_features.length} SHAP features returned`);
+    status.textContent = "4/4 API CHECKS PASSED · not pytest";
+    status.classList.add("smoke-ok");
+    $("#response-json").textContent = JSON.stringify({ checks, score, explanation }, null, 2);
+    $("#response-time").textContent = "4 ROUTES / BROWSER SMOKE CHECK";
+  } catch (error) {
+    checks.push(`FAILED: ${error.message}`);
+    status.textContent = "API CHECK FAILED · see response";
+    status.classList.remove("smoke-ok");
+    $("#response-json").textContent = JSON.stringify({ checks }, null, 2);
+    $("#response-time").textContent = "SMOKE CHECK FAILED";
+  } finally {
+    button.disabled = false;
+    button.innerHTML = "Run backend API smoke check <span>✓</span>";
+  }
+}
+
 $("#run-score").addEventListener("click", requestScore);
 $("#run-explain").addEventListener("click", requestExplain);
+$("#run-smoke").addEventListener("click", requestSmokeCheck);
 loadResults();
 setApiStatus();
