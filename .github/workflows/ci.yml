@@ -20,8 +20,12 @@ jobs:
           cache: pip
       - name: Install project and development tools
         run: python -m pip install -e '.[dev,mcp]'
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
       - name: Run tests
         run: pytest -q
+      - name: Test the optional EVM receipt contract
+        run: make web3-test
       - name: Check code style
         run: ruff check src bench tests scripts
       - name: Check generated README

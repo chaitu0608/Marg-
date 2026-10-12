@@ -66,14 +66,36 @@ def test_portfolio_serves_page_and_saved_results(tmp_path, monkeypatch):
     thresholds.write_text('{"block": 0.8, "review": 0.4}')
     monkeypatch.setattr("marg.fraud.serve.joblib.load", lambda _: TinyModel())
 
+    # These fixture JSON files are for the API test only; they are not benchmark results.
+    result_dir = tmp_path / "results"
+    result_dir.mkdir()
+    fixture_results = {
+        "routing": {"seed_count": 1},
+        "fraud_metrics": {"dataset_path": "test-fixture-only"},
+        "loadtest": {"target_met": False},
+        "outage_detection": {},
+        "outage_tradeoff": {},
+        "fraud_sensitivity": {},
+        "pipeline": {},
+    }
+    for filename, payload in fixture_results.items():
+        (result_dir / f"{filename}.json").write_text(json.dumps(payload))
+    monkeypatch.setattr("marg.fraud.serve.PROJECT_ROOT", tmp_path)
+
     with TestClient(create_app(str(model_path), str(thresholds))) as client:
         page = client.get("/")
         results = client.get("/api/results")
+        css = client.get("/assets/site.css")
+        javascript = client.get("/assets/site.js")
 
     assert page.status_code == 200
     assert "Make every" in page.text
+    assert "Mārg (मार्ग · maarg)" in page.text
     assert results.status_code == 200
     payload = results.json()
-    assert payload["routing"]["seed_count"] == 20
-    assert payload["fraud"]["dataset_path"] == "data/creditcard.csv"
+    assert payload["routing"]["seed_count"] == 1
+    assert payload["fraud"]["dataset_path"] == "test-fixture-only"
     assert payload["latency"]["target_met"] is False
+    assert css.status_code == 200 and "color-scheme:dark" in css.text
+    assert "--lime:#d8ff63" in css.text
+    assert javascript.status_code == 200 and "/api/results" in javascript.text

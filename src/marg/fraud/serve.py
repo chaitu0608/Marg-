@@ -104,6 +104,9 @@ def create_app(model_path: str = "models/fraud_model.joblib",
             if not path.is_file():
                 raise HTTPException(status_code=503, detail=f"Missing result: {filename}")
             snapshots[key] = json.loads(path.read_text())
+        attestation_path = PROJECT_ROOT / "artifacts" / "marg-attestation.json"
+        if attestation_path.is_file():
+            snapshots["attestation"] = json.loads(attestation_path.read_text())
         return snapshots
 
     @app.get("/health")

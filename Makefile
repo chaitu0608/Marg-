@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 PYTEST ?= .venv/bin/pytest
 
-.PHONY: test bench world train serve loadtest pipeline outage-detector outage-tradeoff fraud-sensitivity docs clean-generated verify lint ci mcp
+.PHONY: test bench world train serve loadtest pipeline outage-detector outage-tradeoff fraud-sensitivity docs clean-generated verify lint ci mcp attest web3-test
 
 test:
 	$(PYTEST) -q
@@ -29,6 +29,13 @@ fraud-sensitivity:
 
 mcp:
 	$(PYTHON) -m marg.mcp_server
+
+attest:
+	$(PYTHON) scripts/create_attestation.py
+
+web3-test:
+	forge fmt --check
+	forge test -vv
 
 bench:
 	$(PYTHON) -m bench.run_routing --seed 7 --seeds 20 --horizon 20000
