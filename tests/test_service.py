@@ -80,6 +80,9 @@ def test_portfolio_serves_page_and_saved_results(tmp_path, monkeypatch):
     }
     for filename, payload in fixture_results.items():
         (result_dir / f"{filename}.json").write_text(json.dumps(payload))
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "marg-attestation.json").write_text('{"result_digest": "test-digest"}')
     monkeypatch.setattr("marg.fraud.serve.PROJECT_ROOT", tmp_path)
 
     with TestClient(create_app(str(model_path), str(thresholds))) as client:
@@ -96,6 +99,7 @@ def test_portfolio_serves_page_and_saved_results(tmp_path, monkeypatch):
     assert payload["routing"]["seed_count"] == 1
     assert payload["fraud"]["dataset_path"] == "test-fixture-only"
     assert payload["latency"]["target_met"] is False
+    assert payload["attestation"]["result_digest"] == "test-digest"
     assert css.status_code == 200 and "color-scheme:dark" in css.text
     assert "--lime:#d8ff63" in css.text
     assert javascript.status_code == 200 and "/api/results" in javascript.text
