@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 PYTEST ?= .venv/bin/pytest
 
-.PHONY: test bench world train serve loadtest pipeline outage-detector docs clean-generated verify lint
+.PHONY: test bench world train serve loadtest pipeline outage-detector outage-tradeoff fraud-sensitivity docs clean-generated verify lint ci mcp
 
 test:
 	$(PYTEST) -q
@@ -21,17 +21,28 @@ pipeline:
 outage-detector:
 	$(PYTHON) -m bench.run_outage_detector --seed 7 --seeds 20 --horizon 20000
 
+outage-tradeoff:
+	$(PYTHON) -m bench.run_outage_tradeoff --seed 7 --seeds 20 --horizon 20000
+
+fraud-sensitivity:
+	$(PYTHON) -m bench.run_fraud_sensitivity --data data/creditcard.csv
+
+mcp:
+	$(PYTHON) -m marg.mcp_server
+
 bench:
 	$(PYTHON) -m bench.run_routing --seed 7 --seeds 20 --horizon 20000
 	$(PYTHON) -m bench.run_outage_detector --seed 7 --seeds 20 --horizon 20000
+	$(PYTHON) -m bench.run_outage_tradeoff --seed 7 --seeds 20 --horizon 20000
 	$(PYTHON) -m bench.run_window_sweep
 	$(PYTHON) -m marg.fraud.train --data data/creditcard.csv --seed 7
+	$(PYTHON) -m bench.run_fraud_sensitivity --data data/creditcard.csv
 	$(PYTHON) -m bench.run_loadtest
 	$(PYTHON) -m marg.pipeline
 	$(PYTHON) scripts/generate_readme.py
 
 serve:
-	$(PYTHON) -m uvicorn marg.fraud.serve:app --host 127.0.0.1 --port 8000 --workers 4
+	$(PYTHON) -m marg.fraud.server
 
 docs:
 	$(PYTHON) scripts/generate_readme.py
@@ -42,3 +53,9 @@ clean-generated:
 verify: clean-generated world test bench
 	$(PYTHON) scripts/generate_readme.py --check
 	$(PYTHON) -m ruff check src bench tests scripts
+
+lint:
+	$(PYTHON) -m ruff check src bench tests scripts
+
+ci: test lint
+	$(PYTHON) scripts/generate_readme.py --check
