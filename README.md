@@ -55,15 +55,15 @@ Accuracy is not a headline metric because the legitimate class dominates; predic
 |---|---:|
 | Requests at concurrency | 10,000 at 32 |
 | Uvicorn workers | 4 |
-| p50 / p95 / p99 latency | 24.332 / 174.392 / 315.806 ms |
-| Throughput | 629.88 requests/s |
+| p50 / p95 / p99 latency | 21.218 / 148.939 / 235.803 ms |
+| Throughput | 730.25 requests/s |
 | p99 target (100 ms) | missed |
-| Bottleneck | The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 4.844 ms p99 and measured Uvicorn dispatch queue is 0.102 ms p99. |
+| Bottleneck | The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 2.391 ms p99 and measured Uvicorn dispatch queue is 0.043 ms p99. |
 | Measurement method | fixed-worker HTTP client with pre-encoded input; app timing spans ASGI dispatch through response serialization; server queue is Uvicorn header-parse-to-ASGI scheduling delay; residual includes client scheduling, loopback/socket transport, and response decoding |
-| App processing p99 | 4.844 ms |
-| Uvicorn dispatch queue p99 | 0.102 ms |
-| Client/loopback/response residual p99 (paired estimate) | 313.169 ms |
-| Non-inference overhead p99 (paired request estimate) | 315.569 ms |
+| App processing p99 | 2.391 ms |
+| Uvicorn dispatch queue p99 | 0.043 ms |
+| Client/loopback/response residual p99 (paired estimate) | 234.066 ms |
+| Non-inference overhead p99 (paired request estimate) | 235.640 ms |
 
 | End-to-end test-stream metric | Measured value |
 |---|---:|
