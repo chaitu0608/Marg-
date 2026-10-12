@@ -191,10 +191,22 @@ async function requestSmokeCheck() {
       throw new Error(explanation.detail || "POST /explain returned no top_features list");
     }
     checks.push(`POST /explain: ${explanation.top_features.length} SHAP features returned`);
-    status.textContent = "4/4 API CHECKS PASSED · not pytest";
+
+    const summaryResponse = await fetch("/demo/summary");
+    if (!summaryResponse.ok || (await summaryResponse.json()).synthetic !== true) {
+      throw new Error("GET /demo/summary failed");
+    }
+    checks.push("GET /demo/summary: synthetic ledger ready");
+
+    const historyResponse = await fetch("/demo/transactions?limit=1");
+    if (!historyResponse.ok || !Array.isArray(await historyResponse.json())) {
+      throw new Error("GET /demo/transactions failed");
+    }
+    checks.push("GET /demo/transactions: history endpoint ready");
+    status.textContent = "6/6 API CHECKS PASSED · not pytest";
     status.classList.add("smoke-ok");
     $("#response-json").textContent = JSON.stringify({ checks, score, explanation }, null, 2);
-    $("#response-time").textContent = "4 ROUTES / BROWSER SMOKE CHECK";
+    $("#response-time").textContent = "6 ROUTES / BROWSER SMOKE CHECK";
   } catch (error) {
     checks.push(`FAILED: ${error.message}`);
     status.textContent = "API CHECK FAILED · see response";
@@ -206,6 +218,199 @@ async function requestSmokeCheck() {
     button.innerHTML = "Run backend API smoke check <span>✓</span>";
   }
 }
+
+const zeroFeatures = Array(30).fill(0);
+let demoExamples = [];
+let lastDemoSubmission = null;
+
+function renderDemoResult(result) {
+  const statusLabel = result.idempotent_replay ? "REPLAY · NO SECOND ROUTE" : result.status.toUpperCase();
+  $("#demo-result-title").textContent = `${result.decision.toUpperCase()} · ${statusLabel}`;
+  $("#demo-result-tick").textContent = `TICK ${result.tick}`;
+  const rows = [
+    ["FRAUD SCORE", Number(result.score).toFixed(6)],
+    ["GATEWAY", result.gateway || "not routed"],
+    ["FAKE OUTCOME", result.gateway_outcome || "none"],
+    ["CONTEXT", `${result.bank} / ${result.method}`],
+    ["SCENARIO", result.scenario],
+    ["AMOUNT UNIT", Number(result.amount).toFixed(2)],
+  ];
+  const grid = $("#demo-result-grid");
+  grid.replaceChildren(...rows.map(([label, value]) => {
+    const item = document.createElement("div");
+    const caption = document.createElement("span");
+    const content = document.createElement("strong");
+    caption.textContent = label;
+    content.textContent = value;
+    item.append(caption, content);
+    return item;
+  }));
+  $("#demo-result-json").textContent = JSON.stringify(result, null, 2);
+}
+
+function renderDemoSummary(summary) {
+  const counts = summary.status_counts;
+  $("#demo-count").textContent = summary.transaction_count;
+  $("#demo-observations").textContent = summary.router_observation_count;
+  $("#demo-successes").textContent = counts.succeeded || 0;
+  $("#demo-failures").textContent = counts.failed || 0;
+  $("#demo-reviews").textContent = counts.awaiting_review || 0;
+  $("#demo-blocks").textContent = counts.blocked || 0;
+  const recentRoutes = summary.recent_route_window;
+  const maxAttempts = Math.max(1, ...recentRoutes.map((row) => row.attempts));
+  const chart = $("#demo-gateways");
+  chart.replaceChildren(...recentRoutes.map((gateway) => {
+    const row = document.createElement("div");
+    row.className = "demo-gateway-row";
+    const label = document.createElement("span");
+    label.textContent = gateway.gateway;
+    const track = document.createElement("div");
+    track.className = "demo-gateway-track";
+    const fill = document.createElement("i");
+    fill.style.width = `${gateway.attempts / maxAttempts * 100}%`;
+    track.append(fill);
+    const stats = document.createElement("b");
+    stats.textContent = `${gateway.successes}/${gateway.attempts} recent`;
+    row.append(label, track, stats);
+    return row;
+  }));
+}
+
+function renderDemoHistory(transactions) {
+  const container = $("#demo-history-rows");
+  if (!transactions.length) {
+    container.textContent = "No demo transactions yet.";
+    container.classList.add("field-help");
+    return;
+  }
+  container.classList.remove("field-help");
+  container.replaceChildren(...transactions.map((item) => {
+    const row = document.createElement("div");
+    row.className = "demo-history-row";
+    for (const value of [
+      `${item.transaction_id} · ${item.bank}/${item.method}`,
+      `${item.decision} · ${Number(item.score).toFixed(4)}`,
+      item.gateway ? `${item.gateway} · ${item.gateway_outcome}` : item.status,
+    ]) {
+      const cell = document.createElement("span");
+      cell.textContent = value;
+      row.append(cell);
+    }
+    return row;
+  }));
+}
+
+async function refreshDemoHistory() {
+  try {
+    const [summaryResponse, historyResponse] = await Promise.all([
+      fetch("/demo/summary"),
+      fetch("/demo/transactions?limit=12"),
+    ]);
+    if (!summaryResponse.ok || !historyResponse.ok) throw new Error("demo history API unavailable");
+    renderDemoSummary(await summaryResponse.json());
+    renderDemoHistory(await historyResponse.json());
+  } catch (error) {
+    $("#demo-history-rows").textContent = `Could not load local history: ${error.message}`;
+  }
+}
+
+async function loadDemoExamples() {
+  try {
+    const response = await fetch("/demo/examples");
+    if (!response.ok) throw new Error("Run make demo-examples to create model-decision samples.");
+    const payload = await response.json();
+    demoExamples = payload.examples;
+    const select = $("#tx-example");
+    for (const [index, example] of demoExamples.entries()) {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = `${example.name} · holdout features`;
+      select.append(option);
+    }
+    $("#feature-help").textContent = `${payload.feature_count} values ordered Time, V1–V28, Amount, from the later time-split test period; labels omitted. The Amount value follows the amount field. Gateway outcomes remain simulated.`;
+  } catch (error) {
+    $("#feature-help").textContent = `Using the editable baseline vector. ${error.message}`;
+  }
+}
+
+function setDemoExample() {
+  const selected = $("#tx-example").value;
+  const example = selected === "zeros" ? null : demoExamples[Number(selected)];
+  const features = example ? [...example.features] : [...zeroFeatures];
+  const amount = example ? Number(features[29]) : Number($("#tx-amount").value);
+  features[29] = amount;
+  $("#tx-amount").value = amount.toFixed(2);
+  $("#tx-features").value = JSON.stringify(features);
+}
+
+function parseDemoFeatures() {
+  const features = JSON.parse($("#tx-features").value);
+  if (!Array.isArray(features) || features.length !== 30
+      || features.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+    throw new Error("Enter a JSON array with exactly 30 finite numbers.");
+  }
+  return features;
+}
+
+async function sendDemoTransaction(body, idempotencyKey, isReplay = false) {
+  const button = $("#submit-transaction");
+  button.disabled = true;
+  $("#replay-transaction").disabled = true;
+  button.textContent = "Scoring and routing…";
+  try {
+    const response = await fetch("/demo/transactions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || `Demo request failed (${response.status})`);
+    if (!isReplay) lastDemoSubmission = { body, idempotencyKey };
+    renderDemoResult(result);
+    await refreshDemoHistory();
+  } catch (error) {
+    $("#demo-result-title").textContent = "TRANSACTION NOT RECORDED";
+    $("#demo-result-grid").textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.innerHTML = "Run synthetic transaction <span>↗</span>";
+    $("#replay-transaction").disabled = !lastDemoSubmission;
+  }
+}
+
+$("#transaction-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  try {
+    const amount = Number($("#tx-amount").value);
+    const features = parseDemoFeatures();
+    features[29] = amount;
+    const body = {
+      features,
+      bank: $("#tx-bank").value,
+      method: $("#tx-method").value,
+      amount,
+      outage_gateway: $("#tx-outage").value || null,
+    };
+    const requestId = globalThis.crypto?.randomUUID
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+    const key = `marg-demo-${requestId}`;
+    void sendDemoTransaction(body, key);
+  } catch (error) {
+    $("#demo-result-title").textContent = "CHECK THE SAMPLE INPUT";
+    $("#demo-result-grid").textContent = error.message;
+  }
+});
+
+$("#replay-transaction").addEventListener("click", () => {
+  if (lastDemoSubmission) {
+    void sendDemoTransaction(lastDemoSubmission.body, lastDemoSubmission.idempotencyKey, true);
+  }
+});
+$("#tx-example").addEventListener("change", setDemoExample);
+setDemoExample();
+loadDemoExamples();
+refreshDemoHistory();
 
 $("#run-score").addEventListener("click", requestScore);
 $("#run-explain").addEventListener("click", requestExplain);
