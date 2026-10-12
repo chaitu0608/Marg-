@@ -9,11 +9,25 @@ from typing import Literal
 
 import joblib
 import numpy as np
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from marg.fraud.explain import Explainer
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+WEB_ROOT = PROJECT_ROOT / "web"
+RESULT_FILES = {
+    "routing": "routing.json",
+    "fraud": "fraud_metrics.json",
+    "latency": "loadtest.json",
+    "outage_detector": "outage_detection.json",
+    "outage_tradeoff": "outage_tradeoff.json",
+    "fraud_sensitivity": "fraud_sensitivity.json",
+    "pipeline": "pipeline.json",
+}
 
 
 class ScoreRequest(BaseModel):
@@ -73,6 +87,24 @@ def create_app(model_path: str = "models/fraud_model.joblib",
 
     app = FastAPI(title="Marg fraud scoring", lifespan=lifespan)
     app.add_middleware(AppTimingMiddleware)
+
+    if WEB_ROOT.is_dir():
+        app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
+
+    @app.get("/", include_in_schema=False)
+    def portfolio() -> FileResponse:
+        return FileResponse(WEB_ROOT / "index.html")
+
+    @app.get("/api/results")
+    def results() -> dict[str, dict]:
+        """Return only the committed benchmark files used by the project site."""
+        snapshots: dict[str, dict] = {}
+        for key, filename in RESULT_FILES.items():
+            path = PROJECT_ROOT / "results" / filename
+            if not path.is_file():
+                raise HTTPException(status_code=503, detail=f"Missing result: {filename}")
+            snapshots[key] = json.loads(path.read_text())
+        return snapshots
 
     @app.get("/health")
     def health() -> dict[str, str]:

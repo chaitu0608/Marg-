@@ -57,3 +57,23 @@ def test_explain_is_separate_and_returns_feature_contributions(tmp_path, monkeyp
     with TestClient(create_app(str(model_path), str(thresholds))) as client:
         result = client.post("/explain", json={"features": [0.1] * 30}).json()
         assert result["top_features"][0]["feature"] == "V1"
+
+
+def test_portfolio_serves_page_and_saved_results(tmp_path, monkeypatch):
+    model_path = tmp_path / "model.joblib"
+    model_path.write_bytes(b"placeholder")
+    thresholds = tmp_path / "thresholds.json"
+    thresholds.write_text('{"block": 0.8, "review": 0.4}')
+    monkeypatch.setattr("marg.fraud.serve.joblib.load", lambda _: TinyModel())
+
+    with TestClient(create_app(str(model_path), str(thresholds))) as client:
+        page = client.get("/")
+        results = client.get("/api/results")
+
+    assert page.status_code == 200
+    assert "Make every" in page.text
+    assert results.status_code == 200
+    payload = results.json()
+    assert payload["routing"]["seed_count"] == 20
+    assert payload["fraud"]["dataset_path"] == "data/creditcard.csv"
+    assert payload["latency"]["target_met"] is False
