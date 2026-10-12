@@ -12,6 +12,8 @@
 
 Marg now includes `ObservedOutageDetector`, which compares a 100-outcome baseline with the latest 25 observed outcomes for a bank/gateway pair. It signals a drop only when baseline success is at least 75% and recent success is at most 50%; it clears after recent success rises above 50%. These initial cutoffs are simple simulation parameters, not production-calibrated probabilities. The benchmark uses a balanced probe policy and checks alerts against the schedule only after the detector emits them.
 
+`bench/run_outage_tradeoff.py` compares this detector family at 50/10, 100/25, and 200/25 windows plus a five-consecutive-failures baseline. It also probes at every transaction or every second/fourth transaction. The evaluator reports detected and missed outages, false alarms per probe volume, detection delay, and low-probe coverage. Probe cadence trades off observed-outcome coverage and detector cost; it does not establish the best production rate. The 200/25 setup's minimum baseline success is 80%, while the other window configurations use 75%.
+
 ## Fraud and explanations
 
 **Why is SHAP kept out of `/score`?** Model inference returns a score and threshold decision. SHAP is much slower and runs only when `/explain` is called, so its work cannot increase the `/score` path's measured latency.
@@ -29,6 +31,18 @@ Marg now includes `ObservedOutageDetector`, which compares a 100-outcome baselin
 **Why is the LLM kept out of the decision path?** Fraud model thresholds decide allow/review/block, and the router chooses the gateway. The investigator runs only after the decision for a case report. Its output is validated, its factors must be in the supplied SHAP list, and a failed response falls back to a fixed report.
 
 **What prevents accidental live gateway calls?** `GatewayDispatchGuard` is disabled by default. Even if explicitly enabled, it requires an adapter, nonempty gateway allowlist, finite positive amount cap, an `allow` decision, an amount within the cap, and unique transaction and idempotency identifiers. Its deduplication store is process-local, so a production adapter must replace that boundary with durable deduplication, approval, reconciliation, and audit controls.
+
+The instrumented server adds a narrow queue measurement in `src/marg/fraud/server.py:TimedRequestResponseCycle`: elapsed time between Uvicorn parsing request headers and the scheduled ASGI coroutine beginning. `AppTimingMiddleware` measures ASGI processing through response serialization. Subtracting both from paired client latency gives a residual that still combines client scheduling, socket/loopback transport, and response JSON decoding. No separate remote load-generator host was available for the saved run; `bench.run_loadtest --url` can drive an instrumented endpoint remotely.
+
+**How does fraud policy change with assumptions?** `bench/run_fraud_sensitivity.py:evaluate_scenarios` reuses the saved model, selects each scenario's thresholds on validation, and evaluates them on the later test split. The table varies review capacity and per-case review cost. Dataset Amount is only a proxy: its currency and relationship to actual loss are unknown, so these are scenarios rather than business estimates.
+
+## DevOps and MCP
+
+`.github/workflows/ci.yml` runs tests, Ruff, and a check that the README matches committed JSON results. It does not run the full data-dependent benchmark because the real credit-card dataset is ignored by Git; run `make verify` locally after providing it. This gives code changes a fast gate without copying local data into CI.
+
+The optional `marg.mcp_server` exposes fixed-name result files, saved fraud sensitivity cases, and guardrail descriptions over MCP stdio. It is read-only and cannot execute shell commands, accept arbitrary file paths, change decisions, or call a gateway. This lets a compatible agent inspect Marg evidence while keeping the fraud model and router as decision owners. Install with `pip install -e '.[mcp]'`, then run `make mcp`.
+
+A graphical frontend is not necessary: the API, deterministic CLI benchmarks, generated plots/tables, CI, and optional MCP tools are the project interface. A dashboard would make sense later if an operator workflow or live monitoring use case were added.
 
 ## Ambiguity
 
