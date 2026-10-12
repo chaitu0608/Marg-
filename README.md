@@ -20,7 +20,9 @@ The investigator only writes a case report after the scoring decision. It cannot
 
 ## Interactive project site
 
-`make serve` also serves a minimal single-page explanation of the routing and fraud flows, charts generated from saved results, and a live `/score` and `/explain` playground using a clearly labeled all-zero demo vector. The benchmark values come from `/api/results`, which reads the committed JSON files. The optional Web3 section explains a hash-only result receipt; it does not connect a wallet or affect payment decisions.
+`make serve` serves the project explanation, charts generated from saved results, the `/score` and `/explain` playground, and a local synthetic transaction console. The console sends a 30-feature vector to the real loaded model, stops blocked and review decisions, and sends allowed examples to a seeded fake gateway. Its SQLite ledger stores transaction outcomes and the router's observations; router state is rebuilt from the latest saved outcomes on every request so it works across Uvicorn workers. Idempotency keys prevent duplicate replays from creating another route or learning update. Raw feature vectors are not stored. The browser can inject a named fake gateway outage and watch the policy respond to observed failures. No gateway provider is contacted.
+
+Run `make demo-examples` after training to generate model-decision examples from anonymized, later time-split test features; the sample artifact omits the dataset's class labels. `make bench` generates these examples after training. Benchmark charts still load from the committed JSON files through `/api/results`. The optional Web3 section explains a hash-only result receipt; it does not connect a wallet or affect payment decisions.
 
 ## Results
 
@@ -53,15 +55,15 @@ Accuracy is not a headline metric because the legitimate class dominates; predic
 |---|---:|
 | Requests at concurrency | 10,000 at 32 |
 | Uvicorn workers | 4 |
-| p50 / p95 / p99 latency | 21.078 / 141.180 / 231.384 ms |
-| Throughput | 755.41 requests/s |
+| p50 / p95 / p99 latency | 24.332 / 174.392 / 315.806 ms |
+| Throughput | 629.88 requests/s |
 | p99 target (100 ms) | missed |
-| Bottleneck | The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 2.311 ms p99 and measured Uvicorn dispatch queue is 0.034 ms p99. |
+| Bottleneck | The client-observed tail is dominated by client/loopback/socket/response time; ASGI processing is 4.844 ms p99 and measured Uvicorn dispatch queue is 0.102 ms p99. |
 | Measurement method | fixed-worker HTTP client with pre-encoded input; app timing spans ASGI dispatch through response serialization; server queue is Uvicorn header-parse-to-ASGI scheduling delay; residual includes client scheduling, loopback/socket transport, and response decoding |
-| App processing p99 | 2.311 ms |
-| Uvicorn dispatch queue p99 | 0.034 ms |
-| Client/loopback/response residual p99 (paired estimate) | 230.121 ms |
-| Non-inference overhead p99 (paired request estimate) | 231.217 ms |
+| App processing p99 | 4.844 ms |
+| Uvicorn dispatch queue p99 | 0.102 ms |
+| Client/loopback/response residual p99 (paired estimate) | 313.169 ms |
+| Non-inference overhead p99 (paired request estimate) | 315.569 ms |
 
 | End-to-end test-stream metric | Measured value |
 |---|---:|

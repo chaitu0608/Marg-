@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 PYTEST ?= .venv/bin/pytest
 
-.PHONY: test bench world train serve loadtest pipeline outage-detector outage-tradeoff fraud-sensitivity docs clean-generated verify lint ci mcp attest web3-test
+.PHONY: test bench world train serve loadtest pipeline outage-detector outage-tradeoff fraud-sensitivity demo-examples docs clean-generated verify lint ci mcp attest web3-test
 
 test:
 	$(PYTEST) -q
@@ -27,6 +27,9 @@ outage-tradeoff:
 fraud-sensitivity:
 	$(PYTHON) -m bench.run_fraud_sensitivity --data data/creditcard.csv
 
+demo-examples:
+	$(PYTHON) -m bench.generate_demo_samples --data data/creditcard.csv
+
 mcp:
 	$(PYTHON) -m marg.mcp_server
 
@@ -43,6 +46,7 @@ bench:
 	$(PYTHON) -m bench.run_outage_tradeoff --seed 7 --seeds 20 --horizon 20000
 	$(PYTHON) -m bench.run_window_sweep
 	$(PYTHON) -m marg.fraud.train --data data/creditcard.csv --seed 7
+	$(PYTHON) -m bench.generate_demo_samples --data data/creditcard.csv
 	$(PYTHON) -m bench.run_fraud_sensitivity --data data/creditcard.csv
 	$(PYTHON) -m bench.run_loadtest
 	$(PYTHON) -m marg.pipeline
