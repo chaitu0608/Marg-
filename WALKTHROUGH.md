@@ -62,7 +62,17 @@ The investigator has no API to change a model score, a routing choice, or an all
 
 `tests/test_gateway_safety.py` uses fake adapters to prove a timeout is surfaced, a second guard-level submission is rejected, rejected fraud decisions never reach an adapter, and an adapter may retry an ambiguous request with the same provider idempotency key. The retry test models provider-side deduplication; it does not add retries to the production guard.
 
-## 8. MCP and CI
+## 8. Live synthetic transaction flow
+
+`src/marg/fraud/serve.py:create_app` exposes `POST /demo/transactions`, plus read-only summary, history, and example endpoints. `DemoTransactionRequest` validates the 30 finite model features, bank, payment method, and positive amount. The endpoint runs the same loaded LightGBM model and thresholds as `/score`. A block is recorded as `blocked`; a review is recorded as `awaiting_review`; neither reaches a gateway. Only an allow decision selects a route.
+
+`src/marg/demo/runtime.py:DemoRuntime.submit` uses a SQLite `BEGIN IMMEDIATE` transaction to serialize the local demo's idempotency check, route choice, fake outcome, observation write, and transaction record. The idempotency key is paired with a hash of the request: the same key and same request returns the original result, while reusing that key for different content returns HTTP 409. Raw model feature vectors are not persisted.
+
+Before selecting, `DemoRuntime._seed_router` rebuilds the last 200 observed outcomes per gateway for that bank/method context. It uses the same `SlidingWindowThompsonRouter` used by the routing benchmark. `FakeGatewayWorld` keeps the seeded success probabilities private and returns only a boolean outcome. A selected fake outage multiplies that gateway's internal probability; the router sees only the resulting failures and can shift traffic to another gateway. A hash-based draw makes the same seeded tick/gateway outcome repeatable across worker processes. `bench/generate_demo_samples.py` selects one model-allow, model-review, and model-block input from the later anonymized test split when those bands exist; it omits class labels and writes the ignored local artifact `artifacts/demo-samples.json`.
+
+**Edge cases:** The browser's replay button deliberately resends the last body with its original key; it does not create another transaction or router update. A malformed 30-value vector, unknown bank/method/gateway, non-finite feature, or non-positive amount is rejected. The transaction write endpoint accepts loopback clients only, and `make serve` binds to `127.0.0.1`. This is a single-machine demonstration: SQLite locking is suitable for this local flow, not a distributed production payment ledger. The review status is a queue record, not a human review workflow. Gateway behavior and outcomes are synthetic.
+
+## 9. MCP and CI
 
 `src/marg/mcp_server.py:create_server` registers read-only MCP tools for a fixed allowlist of committed result files, saved fraud-policy scenarios, and Marg's decision boundaries. `read_result` rejects arbitrary paths. The tools cannot execute shell commands, modify result files, score transactions, route payments, or call the gateway adapter. An MCP-capable client can use them to inspect evidence and draft an explanation; the investigator remains post-decision and the model/router remain decision owners.
 
