@@ -47,3 +47,20 @@ def test_cost_thresholds_obey_validation_review_capacity_and_report_newer_period
     assert validation["total_cost_amount_units"] < validation_amounts[validation_labels == 1].sum()
     assert newer_period["missed_fraud_count"] == 1
     assert newer_period["total_cost_amount_units"] == 71.0
+
+
+def test_fraud_sensitivity_scenarios_select_only_on_validation_and_obey_review_caps():
+    from bench.run_fraud_sensitivity import evaluate_scenarios
+
+    validation = pd.DataFrame({
+        LABEL: np.array([1, 0] * 10, dtype=np.int8),
+        "Amount": np.linspace(1.0, 20.0, 20),
+    })
+    test = validation.copy()
+    validation_scores = np.linspace(0.05, 0.95, 20)
+    test_scores = validation_scores[::-1].copy()
+    scenarios = evaluate_scenarios(validation, test, validation_scores, test_scores)
+    assert len(scenarios) == 20
+    assert {row["max_review_rate"] for row in scenarios} == {0.0, 0.0025, 0.005, 0.01, 0.02}
+    assert all(row["newer_test_period"]["review_rate"]
+               <= row["max_review_rate"] for row in scenarios)

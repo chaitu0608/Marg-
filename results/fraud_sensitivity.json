@@ -1,0 +1,359 @@
+{
+  "dataset_path": "data/creditcard.csv",
+  "scenario_note": "Amount is a proxy only; unit, currency, actual fraud loss, and review benefit are unknown. Each threshold pair is selected on validation data and evaluated on the later test period.",
+  "review_caps": [
+    0.0,
+    0.0025,
+    0.005,
+    0.01,
+    0.02
+  ],
+  "review_cost_amount_units_per_case": [
+    0.0,
+    0.5,
+    1.0,
+    5.0
+  ],
+  "scenarios": [
+    {
+      "max_review_rate": 0.0,
+      "review_cost_amount_units_per_case": 0.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0,
+      "review_cost_amount_units_per_case": 0.5,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0,
+      "review_cost_amount_units_per_case": 1.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0,
+      "review_cost_amount_units_per_case": 5.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0025,
+      "review_cost_amount_units_per_case": 0.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0025,
+      "review_cost_amount_units_per_case": 0.5,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0025,
+      "review_cost_amount_units_per_case": 1.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.0025,
+      "review_cost_amount_units_per_case": 5.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.005,
+      "review_cost_amount_units_per_case": 0.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.005,
+      "review_cost_amount_units_per_case": 0.5,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.005,
+      "review_cost_amount_units_per_case": 1.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.005,
+      "review_cost_amount_units_per_case": 5.0,
+      "review_threshold": 0.997833089938713,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 5500.060000000001,
+      "newer_test_period": {
+        "total_cost_amount_units": 5119.1900000000005,
+        "missed_fraud_amount_units": 5119.1900000000005,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 0,
+        "review_rate": 0.0,
+        "false_block_count": 0,
+        "missed_fraud_count": 32
+      }
+    },
+    {
+      "max_review_rate": 0.01,
+      "review_cost_amount_units_per_case": 0.0,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 144.16,
+      "newer_test_period": {
+        "total_cost_amount_units": 2004.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    },
+    {
+      "max_review_rate": 0.01,
+      "review_cost_amount_units_per_case": 0.5,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 348.65999999999997,
+      "newer_test_period": {
+        "total_cost_amount_units": 2166.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 162.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    },
+    {
+      "max_review_rate": 0.01,
+      "review_cost_amount_units_per_case": 1.0,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 553.16,
+      "newer_test_period": {
+        "total_cost_amount_units": 2328.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 324.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    },
+    {
+      "max_review_rate": 0.01,
+      "review_cost_amount_units_per_case": 5.0,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 2189.16,
+      "newer_test_period": {
+        "total_cost_amount_units": 3624.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 1620.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    },
+    {
+      "max_review_rate": 0.02,
+      "review_cost_amount_units_per_case": 0.0,
+      "review_threshold": 0.00998196160337281,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 121.69,
+      "newer_test_period": {
+        "total_cost_amount_units": 1357.64,
+        "missed_fraud_amount_units": 1357.64,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 0.0,
+        "review_count": 722,
+        "review_rate": 0.01690035345614569,
+        "false_block_count": 0,
+        "missed_fraud_count": 8
+      }
+    },
+    {
+      "max_review_rate": 0.02,
+      "review_cost_amount_units_per_case": 0.5,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 348.65999999999997,
+      "newer_test_period": {
+        "total_cost_amount_units": 2166.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 162.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    },
+    {
+      "max_review_rate": 0.02,
+      "review_cost_amount_units_per_case": 1.0,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 553.16,
+      "newer_test_period": {
+        "total_cost_amount_units": 2328.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 324.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    },
+    {
+      "max_review_rate": 0.02,
+      "review_cost_amount_units_per_case": 5.0,
+      "review_threshold": 0.030780454364443495,
+      "block_threshold": 0.997833089938713,
+      "validation_cost_amount_units": 2189.16,
+      "newer_test_period": {
+        "total_cost_amount_units": 3624.25,
+        "missed_fraud_amount_units": 2004.25,
+        "false_block_amount_units": 0.0,
+        "review_cost_amount_units": 1620.0,
+        "review_count": 324,
+        "review_rate": 0.007584092132674797,
+        "false_block_count": 0,
+        "missed_fraud_count": 10
+      }
+    }
+  ]
+}
